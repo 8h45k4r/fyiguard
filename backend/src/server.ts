@@ -27,6 +27,8 @@ import { policiesRouter } from './routes/policies';
 import { analyticsRouter } from './routes/analytics';
 import { scanRouter } from './routes/scan';
 import { guardRouter } from './routes/guard';
+import alertsRouter from './routes/alerts';
+import behaviorRouter from './routes/behavior';
 
 // Re-export prisma for use in other modules
 export { prisma };
@@ -65,6 +67,8 @@ app.use(`${API_PREFIX}/policies`, authenticate, policiesRouter);
 app.use(`${API_PREFIX}/analytics`, authenticate, analyticsRouter);
 app.use(`${API_PREFIX}/scan`, authenticate, scanRouter);
 app.use(`${API_PREFIX}/guard`, authenticate, guardRouter);
+app.use(`${API_PREFIX}/alerts`, authenticate, alertsRouter);
+app.use(`${API_PREFIX}/behavior`, authenticate, behaviorRouter);
 
 // Error handler (must be last)
 app.use(errorHandler);

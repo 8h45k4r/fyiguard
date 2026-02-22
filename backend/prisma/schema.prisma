@@ -234,3 +234,95 @@ model GuardLog {
   @@index([reason])
   @@map("guard_logs")
 }
+
+// ==========================================
+// Admin Alert System
+// ==========================================
+
+model AdminAlert {
+  id              String        @id @default(cuid())
+  orgId           String?
+  userId          String
+  userEmail       String
+  alertType       AlertType
+  severity        AlertSeverity
+  category        String
+  description     String
+  matchedContent  String        // sanitized snippet
+  platform        String
+  url             String?
+  action          String        // BLOCKED / WARNED / ALLOWED
+  notifiedEmails  String[]      @default([])
+  acknowledged    Boolean       @default(false)
+  acknowledgedBy  String?
+  acknowledgedAt  DateTime?
+  createdAt       DateTime      @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([severity])
+  @@index([alertType])
+  @@map("admin_alerts")
+}
+
+enum AlertType {
+  CRITICAL_DATA_LEAK
+  REPEATED_VIOLATION
+  NEW_PATTERN_DETECTED
+  POLICY_OVERRIDE_ATTEMPT
+  HIGH_RISK_PROMPT
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+  EMERGENCY
+}
+
+// ==========================================
+// User Behavior & Productivity Analytics
+// ==========================================
+
+model BehaviorSession {
+  id              String   @id @default(cuid())
+  userId          String
+  userEmail       String
+  platform        String
+  url             String?
+  startedAt       DateTime @default(now())
+  endedAt         DateTime?
+  durationSeconds Int      @default(0)
+  promptCount     Int      @default(0)
+  blockedCount    Int      @default(0)
+  warnedCount     Int      @default(0)
+  allowedCount    Int      @default(0)
+  avgRiskScore    Float    @default(0)
+  isActive        Boolean  @default(true)
+  metadata        Json?    @default("{}")
+
+  @@index([userId, startedAt])
+  @@index([platform])
+  @@index([userEmail, startedAt])
+  @@map("behavior_sessions")
+}
+
+model DailyUsageSummary {
+  id                String   @id @default(cuid())
+  userId            String
+  userEmail         String
+  date              DateTime @db.Date
+  totalTimeSeconds  Int      @default(0)
+  platformBreakdown Json     @default("{}")
+  totalPrompts      Int      @default(0)
+  totalBlocked      Int      @default(0)
+  totalWarned       Int      @default(0)
+  totalAllowed      Int      @default(0)
+  riskScore         Float    @default(0)
+  productivityScore Float    @default(0)  // 0-100 scale
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userEmail, date])
+  @@map("daily_usage_summaries")
+}

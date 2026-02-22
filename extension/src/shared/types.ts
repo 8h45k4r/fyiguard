@@ -98,3 +98,70 @@ export interface ExtensionState {
   analyticsCache: null;
   lastSync: Date | null;
 }
+
+// ============================================
+// Alert Types (for org admin notifications)
+// ============================================
+
+export interface AlertPayload {
+  orgId: string;
+  userId: string;
+  category: DetectionCategory;
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  eventType: string;
+  platform: string;
+  details: string;
+  eventId?: string;
+}
+
+export interface AdminAlertConfig {
+  emailEnabled: boolean;
+  adminEmail: string;
+  webhookUrl?: string;
+  alertThreshold: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  digestFrequency: 'realtime' | 'hourly' | 'daily';
+}
+
+// ============================================
+// Behavior Tracking Types
+// ============================================
+
+export type BehaviorEventType =
+  | 'session_start'
+  | 'session_end'
+  | 'prompt_submitted'
+  | 'file_uploaded'
+  | 'detection_triggered';
+
+export interface BehaviorTrackingEvent {
+  userId: string;
+  orgId: string;
+  platform: string;
+  eventType: BehaviorEventType;
+  metadata?: Record<string, unknown>;
+  timestamp: number;
+}
+
+export interface UserProductivitySummary {
+  userId: string;
+  totalTimeMinutes: number;
+  platformBreakdown: Record<string, number>;
+  productivityScore: number;
+  promptsSubmitted: number;
+  detectionsTriggered: number;
+  blockedAttempts: number;
+  riskScore: number;
+}
+
+export interface OrgDashboardData {
+  orgId: string;
+  period: string;
+  totalUsers: number;
+  totalSessions: number;
+  totalTimeHours: number;
+  avgTimePerUserMinutes: number;
+  platformUsage: Record<string, { users: number; timeMinutes: number; prompts: number }>;
+  topUsers: Array<{ userId: string; timeMinutes: number; prompts: number }>;
+  riskSummary: { critical: number; high: number; medium: number; low: number };
+  productivityMetrics: { avgScore: number; topPlatform: string; peakHour: number };
+}
