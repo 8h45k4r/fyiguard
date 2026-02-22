@@ -1,10 +1,14 @@
+// FYI Guard - Webpack Configuration
 const path = require('path');
+const webpack = require('webpack');
 const CopyPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 module.exports = {
-  mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
-  devtool: 'cheap-module-source-map',
+  mode: isProduction ? 'production' : 'development',
+  devtool: isProduction ? false : 'cheap-module-source-map',
   entry: {
     content: './src/content/injector.ts',
     popup: './src/popup/App.tsx',
@@ -25,9 +29,22 @@ module.exports = {
         use: 'ts-loader',
         exclude: /node_modules/,
       },
+      {
+        test: /\.css$/,
+        use: ['style-loader', 'css-loader'],
+        exclude: /src\/content/,
+      },
     ],
   },
   plugins: [
+    new webpack.DefinePlugin({
+      'process.env.API_BASE_URL': JSON.stringify(
+        process.env.API_BASE_URL || 'http://localhost:3001'
+      ),
+      'process.env.NODE_ENV': JSON.stringify(
+        process.env.NODE_ENV || 'development'
+      ),
+    }),
     new CopyPlugin({
       patterns: [
         { from: 'manifest.json', to: 'manifest.json' },
@@ -46,4 +63,7 @@ module.exports = {
       chunks: [],
     }),
   ],
+  performance: {
+    hints: false,
+  },
 };

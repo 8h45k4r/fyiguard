@@ -1,19 +1,19 @@
 {
   "manifest_version": 3,
-  "name": "FYI Guard - AI Prompt Security",
+  "name": "FYI Guard \u2013 AI Prompt Security",
   "version": "1.0.0",
   "description": "Prevent sensitive data leaks to ChatGPT, Claude, and other AI tools. Real-time detection of PII, API keys, credentials, and confidential data.",
   "icons": {
-    "16": "public/icons/icon16.png",
-    "48": "public/icons/icon48.png",
-    "128": "public/icons/icon128.png"
+    "16": "public/icons/icon16.svg",
+    "48": "public/icons/icon48.svg",
+    "128": "public/icons/icon128.svg"
   },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "public/icons/icon16.png",
-      "48": "public/icons/icon48.png",
-      "128": "public/icons/icon128.png"
+      "16": "public/icons/icon16.svg",
+      "48": "public/icons/icon48.svg",
+      "128": "public/icons/icon128.svg"
     },
     "default_title": "FYI Guard"
   },
@@ -48,17 +48,6 @@
     "https://claude.ai/*",
     "https://gemini.google.com/*",
     "https://copilot.microsoft.com/*",
-    "https://perplexity.ai/*",
-    "https://api.fyiguard.com/*"
-  ],
-  "options_page": "options.html",
-  "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": ["public/icons/*"],
-      "matches": ["<all_urls>"]
-    }
+    "https://perplexity.ai/*"
   ]
 }
