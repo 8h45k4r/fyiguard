@@ -3,9 +3,14 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
+
+// ==========================================
+// Existing Extension Models
+// ==========================================
 
 model User {
   id        String   @id @default(cuid())
@@ -21,6 +26,9 @@ model User {
   events    DetectionEvent[]
   policies  Policy[]
 
+  // Guard: link to org membership
+  orgMemberships OrgMember[]
+
   @@map("users")
 }
 
@@ -31,21 +39,31 @@ enum Role {
 }
 
 model UserSettings {
-  id                  String   @id @default(cuid())
-  userId              String   @unique
-  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sensitivity         Sensitivity @default(MEDIUM)
-  autoBlock           Boolean  @default(true)
-  pii                 Boolean  @default(true)
-  financial           Boolean  @default(true)
-  credentials         Boolean  @default(true)
-  medical             Boolean  @default(true)
-  proprietary         Boolean  @default(true)
-  emailNotifications  Boolean  @default(false)
-  browserNotifications Boolean @default(true)
-  whitelistedDomains  String[] @default([])
-  enabledPlatforms    String[] @default(["chatgpt", "claude", "gemini"])
-  updatedAt           DateTime @updatedAt
+  id                    String      @id @default(cuid())
+  userId                String      @unique
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sensitivity           Sensitivity @default(MEDIUM)
+  autoBlock             Boolean     @default(true)
+  pii                   Boolean     @default(true)
+  financial             Boolean     @default(true)
+  credentials           Boolean     @default(true)
+  medical               Boolean     @default(true)
+  proprietary           Boolean     @default(true)
+  emailNotifications    Boolean     @default(false)
+  browserNotifications  Boolean     @default(true)
+  whitelistedDomains    String[]    @default([])
+  enabledPlatforms      String[]    @default(["chatgpt", "claude", "gemini"])
+  // Guard fields
+  blockingEnabled       Boolean     @default(true)
+  alertsEnabled         Boolean     @default(true)
+  sensitivityLevel      String      @default("MEDIUM")
+  allowedDomains        String[]    @default([])
+  blockedCategories     String[]    @default([])
+  webhookUrl            String?
+  slackWebhookUrl       String?
+  emailAlerts           Boolean     @default(false)
+  alertEmail            String?
+  updatedAt             DateTime    @updatedAt
 
   @@map("user_settings")
 }
@@ -57,23 +75,30 @@ enum Sensitivity {
 }
 
 model DetectionEvent {
-  id              String        @id @default(cuid())
-  userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  eventType       EventType
-  category        String
-  confidence      Float
-  riskLevel       RiskLevel
-  patternMatched  String
-  sanitizedMatch  String
-  platform        String
-  url             String
-  conversationId  String?
-  promptLength    Int
-  userAction      String        @default("attempted_send")
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventType        EventType
+  category         String
+  confidence       Float
+  riskLevel        RiskLevel
+  patternMatched   String
+  sanitizedMatch   String
+  platform         String
+  url              String
+  conversationId   String?
+  promptLength     Int
+  userAction       String    @default("attempted_send")
   extensionVersion String
-  browser         String
-  createdAt       DateTime      @default(now())
+  browser          String
+  // Guard scan fields
+  promptHash       String?
+  riskScore        Int?
+  action           String?
+  categories       String[]  @default([])
+  findings         Json?     @default("[]")
+  context          Json?     @default("{}")
+  createdAt        DateTime  @default(now())
 
   @@index([userId, createdAt])
   @@index([category])
@@ -100,8 +125,11 @@ model Policy {
   user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
   enabled   Boolean      @default(true)
+  isActive  Boolean      @default(true)
+  isGlobal  Boolean      @default(false)
   platforms String[]     @default([])
   rules     PolicyRule[]
+  description String?
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
@@ -109,12 +137,13 @@ model Policy {
 }
 
 model PolicyRule {
-  id         String @id @default(cuid())
+  id         String       @id @default(cuid())
   policyId   String
-  policy     Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  policy     Policy       @relation(fields: [policyId], references: [id], onDelete: Cascade)
   category   String
   action     PolicyAction @default(BLOCK)
-  exceptions String[] @default([])
+  exceptions String[]     @default([])
+  patterns   String[]     @default([])
 
   @@map("policy_rules")
 }
@@ -123,4 +152,85 @@ enum PolicyAction {
   BLOCK
   WARN
   ALLOW
+}
+
+// ==========================================
+// FYI Guard — Multi-Tenant Access Control Models
+// ==========================================
+
+model Organization {
+  id                  String      @id @default(cuid())
+  name                String
+  slug                String      @unique
+  plan                String      @default("free_trial")
+  restrictSameDomain  Boolean     @default(false)
+  suspended           Boolean     @default(false)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  domains  OrgDomain[]
+  members  OrgMember[]
+
+  @@map("organizations")
+}
+
+model OrgDomain {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  domain    String
+  plan      String       @default("free_trial")
+  verified  Boolean      @default(false)
+  createdAt DateTime     @default(now())
+
+  @@unique([orgId, domain])
+  @@index([domain])
+  @@map("org_domains")
+}
+
+model OrgMember {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String       @default("member")
+  createdAt DateTime     @default(now())
+
+  @@unique([orgId, userId])
+  @@map("org_members")
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  userEmail  String
+  ipAddress  String?
+  userAgent  String?
+  ttlSeconds Int      @default(3600)
+  createdAt  DateTime @default(now())
+
+  @@index([userEmail, createdAt])
+  @@map("sessions")
+}
+
+model GuardLog {
+  id          String   @id @default(cuid())
+  verdict     String
+  reason      String
+  detail      String
+  riskLevel   String
+  actionTaken String
+  userEmail   String
+  userRole    String
+  orgId       String?
+  action      String?
+  ipAddress   String?
+  payload     String?
+  createdAt   DateTime @default(now())
+
+  @@index([userEmail, createdAt])
+  @@index([verdict])
+  @@index([reason])
+  @@map("guard_logs")
 }
