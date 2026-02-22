@@ -1,0 +1,118 @@
+/* FYI Guard - Content Script Styles */
+
+.fyiguard-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.fyiguard-warning-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.fyiguard-warning-card h2 {
+  color: #dc2626;
+  font-size: 20px;
+  margin: 0 0 12px;
+  font-weight: 600;
+}
+
+.fyiguard-warning-card p {
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0 0 20px;
+}
+
+.fyiguard-warning-card .fyiguard-detections {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.fyiguard-warning-card .fyiguard-detection-item {
+  font-size: 13px;
+  color: #991b1b;
+  padding: 4px 0;
+}
+
+.fyiguard-warning-card .fyiguard-btn {
+  display: inline-block;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  margin: 0 6px;
+  transition: all 0.2s;
+}
+
+.fyiguard-warning-card .fyiguard-btn-block {
+  background: #dc2626;
+  color: white;
+}
+
+.fyiguard-warning-card .fyiguard-btn-block:hover {
+  background: #b91c1c;
+}
+
+.fyiguard-warning-card .fyiguard-btn-allow {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.fyiguard-warning-card .fyiguard-btn-allow:hover {
+  background: #d1d5db;
+}
+
+/* Inline warning badge */
+.fyiguard-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fef3cd;
+  color: #856404;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 500;
+}
+
+.fyiguard-badge--critical {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.fyiguard-badge--high {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.fyiguard-badge--medium {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+.fyiguard-badge--low {
+  background: #d4edda;
+  color: #155724;
+}
