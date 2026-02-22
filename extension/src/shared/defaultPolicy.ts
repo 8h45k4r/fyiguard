@@ -19,6 +19,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
     'gemini.google.com',
     'copilot.microsoft.com',
     'perplexity.ai',
+    'www.perplexity.ai',
+    'poe.com',
   ],
 };
 
@@ -29,4 +31,6 @@ export const SUPPORTED_PLATFORMS = [
   { domain: 'gemini.google.com', name: 'Gemini', adapter: 'gemini' },
   { domain: 'copilot.microsoft.com', name: 'Copilot', adapter: 'generic' },
   { domain: 'perplexity.ai', name: 'Perplexity', adapter: 'generic' },
+  { domain: 'www.perplexity.ai', name: 'Perplexity', adapter: 'generic' },
+  { domain: 'poe.com', name: 'Poe', adapter: 'generic' },
 ] as const;

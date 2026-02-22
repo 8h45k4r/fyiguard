@@ -17,6 +17,7 @@
     },
     "default_title": "FYI Guard"
   },
+  "options_page": "options.html",
   "background": {
     "service_worker": "background.js",
     "type": "module"
@@ -29,7 +30,9 @@
         "https://claude.ai/*",
         "https://gemini.google.com/*",
         "https://copilot.microsoft.com/*",
-        "https://perplexity.ai/*"
+        "https://perplexity.ai/*",
+        "https://www.perplexity.ai/*",
+        "https://poe.com/*"
       ],
       "js": ["content.js"],
       "css": ["content.css"],
@@ -48,6 +51,8 @@
     "https://claude.ai/*",
     "https://gemini.google.com/*",
     "https://copilot.microsoft.com/*",
-    "https://perplexity.ai/*"
+    "https://perplexity.ai/*",
+    "https://www.perplexity.ai/*",
+    "https://poe.com/*"
   ]
 }
