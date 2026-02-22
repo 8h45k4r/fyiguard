@@ -17,36 +17,58 @@ Prevent sensitive data leaks to ChatGPT, Claude, and other AI platforms. FYI Gua
 - Chrome Extension Manifest V3
 - Webpack build system
 - Regex-based pattern detection engine
+- Node.js / Express (backend API)
+- Prisma ORM with PostgreSQL
+- Docker containerization
+- GitHub Actions CI/CD
+
+## Getting Started
 
 ## Project Structure
 
 ```
-extension/
-  manifest.json
-  tsconfig.json
-  webpack.config.js
+fyiguard/
+  .github/workflows/ci.yml    # CI/CD pipeline
+  extension/                   # Chrome extension
+    manifest.json
+    tsconfig.json
+    webpack.config.js
+    public/icons/
+    src/
+      background/service-worker.ts
+      content/
+        platform-adapters/     # ChatGPT, Claude, Gemini, Copilot, Perplexity
+        detector.ts
+        injector.ts
+        content.css
+      popup/
+        App.tsx
+        popup.html
+      options/
+        Options.tsx
+        options.html
+      shared/
+        types.ts
+        patterns.ts
+        utils.ts
+        theme.ts
+        config.ts
+        defaultPolicy.ts
+  backend/                     # Express API server
+    prisma/schema.prisma
+    src/
+      middleware/               # auth, errorHandler, guard, logger, rateLimiter
+      routes/                   # guard, health, auth, events, settings, policies, analytics, scan
+      services/                 # detectionService, guardService
+      lib/                      # prisma client, validation
+      __tests__/                # Jest test suites
+      server.ts
+    Dockerfile
+    docker-compose.yml
   package.json
-  public/icons/
-  src/
-    background/service-worker.ts
-    content/
-      platform-adapters/chatgpt.ts
-      detector.ts
-      injector.ts
-      content.css
-    popup/
-      App.tsx
-      popup.html
-    options/options.html
-    shared/
-      types.ts
-      patterns.ts
-      utils.ts
-      theme.ts
-      defaultPolicy.ts
+  README.md
 ```
 
-## Getting Started
 
 ### Prerequisites
 
@@ -58,6 +80,17 @@ extension/
 ```bash
 cd extension
 npm install
+```
+
+### Backend Setup
+
+```bash
+cd backend
+cp .env.example .env
+npm install
+npx prisma generate
+npx prisma db push
+npm run dev
 ```
 
 ### Development

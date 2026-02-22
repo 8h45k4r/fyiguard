@@ -13,6 +13,7 @@ module.exports = {
     content: './src/content/injector.ts',
     popup: './src/popup/App.tsx',
     background: './src/background/service-worker.ts',
+        options: './src/options/Options.tsx',
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -60,7 +61,7 @@ module.exports = {
     new HtmlWebpackPlugin({
       template: './src/options/options.html',
       filename: 'options.html',
-      chunks: [],
+            chunks: ['options'],
     }),
   ],
   performance: {
