@@ -154,6 +154,16 @@ const SettingsPanel: React.FC = () => {
             onChange={e => setSettings({ ...settings, categories: { ...settings.categories, [key]: e.target.checked } })} />
         </label>
       ))}
+            <h3 style={{ fontSize: 14, margin: '16px 0 8px' }}>Sensitivity</h3>
+      <select
+        value={settings.sensitivity}
+        onChange={e => setSettings({ ...settings, sensitivity: e.target.value as 'LOW' | 'MEDIUM' | 'HIGH' })}
+        style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }}
+      >
+        <option value="LOW">Low</option>
+        <option value="MEDIUM">Medium</option>
+        <option value="HIGH">High</option>
+      </select>
       <h3 style={{ fontSize: 14, margin: '16px 0 8px' }}>General</h3>
       <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
         <span>Auto-block critical</span>

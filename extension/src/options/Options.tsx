@@ -18,7 +18,9 @@ const Options: React.FC = () => {
     chrome.storage.local.get(['settings'], (data) => {
       if (data.settings) setSettings(data.settings);
     });
-    getAuthState().then(({ user: u }) => { if (u) setUser({ email: u.email, role: u.role }); });
+    getAuthState().then(({ user: u }) => {
+      if (u) setUser({ email: u.email, role: u.role });
+    });
   }, []);
 
   const save = () => {
@@ -30,26 +32,29 @@ const Options: React.FC = () => {
   };
 
   return (
-    <div style={{ fontFamily: "'Outfit', sans-serif", maxWidth: 720, margin: '0 auto', padding: 24 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a1a2e', marginBottom: 4 }}>FYI Guard Settings</h1>
-      <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>
-        Configure detection, platforms, org, and notifications. {user && <span>({user.email} - {user.role})</span>}
+    <div style={{ maxWidth: 720, margin: '0 auto', padding: 32, fontFamily: "'Outfit', sans-serif" }}>
+      <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1a1a2e', marginBottom: 4 }}>FYI Guard Settings</h1>
+      <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 24 }}>
+        Configure detection, platforms, org, and notifications.
+        {user && <span> ({user.email} - {user.role})</span>}
       </p>
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 0, marginBottom: 16 }}>
         {(['detection', 'platforms', 'notifications', 'organization', 'advanced'] as Tab[]).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)} style={{
-            padding: '8px 14px', border: 'none', cursor: 'pointer', borderRadius: '6px 6px 0 0',
+            padding: '8px 14px', border: 'none', cursor: 'pointer',
+            borderRadius: '6px 6px 0 0',
             background: activeTab === tab ? COLORS.primary : 'transparent',
             color: activeTab === tab ? '#fff' : '#6b7280',
-            fontWeight: activeTab === tab ? 600 : 400, fontSize: 13, textTransform: 'capitalize',
+            fontWeight: activeTab === tab ? 600 : 400,
+            fontSize: 13, textTransform: 'capitalize',
           }}>{tab}</button>
         ))}
       </div>
 
       <div style={cardStyle}>
         {activeTab === 'detection' && <DetectionTab settings={settings} setSettings={setSettings} />}
-        {activeTab === 'platforms' && <PlatformsTab />}
+        {activeTab === 'platforms' && <PlatformsTab settings={settings} setSettings={setSettings} />}
         {activeTab === 'notifications' && <NotificationsTab settings={settings} setSettings={setSettings} />}
         {activeTab === 'organization' && <OrgTab userRole={user?.role || 'MEMBER'} />}
         {activeTab === 'advanced' && <AdvancedTab settings={settings} setSettings={setSettings} />}
@@ -63,9 +68,9 @@ const Options: React.FC = () => {
         {saved && <span style={{ color: '#22C55E', fontWeight: 600 }}>Saved!</span>}
       </div>
 
-      <div style={{ marginTop: 24, color: '#9CA3AF', fontSize: 12, textAlign: 'center' }}>
-        FYI Guard v1.0.0 | <a href={BRAND.website} target="_blank" style={{ color: COLORS.primary }}>{BRAND.name}</a>
-      </div>
+      <p style={{ marginTop: 24, color: '#9ca3af', fontSize: 12 }}>
+        FYI Guard v1.0.0 | <a href={BRAND.website} target="_blank" rel="noreferrer">{BRAND.name}</a>
+      </p>
     </div>
   );
 };
@@ -82,22 +87,39 @@ const DetectionTab: React.FC<{ settings: UserSettings; setSettings: (s: UserSett
     ))}
     <h3 style={{ ...sTitle, marginTop: 16 }}>Sensitivity</h3>
     <select value={settings.sensitivity}
-      onChange={e => setSettings({ ...settings, sensitivity: e.target.value as 'LOW' | 'MEDIUM' | 'HIGH' })} style={selStyle}>
+      onChange={e => setSettings({ ...settings, sensitivity: e.target.value as 'LOW' | 'MEDIUM' | 'HIGH' })}
+      style={selStyle}>
       <option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option>
     </select>
   </div>
 );
 
-const PlatformsTab: React.FC = () => (
-  <div>
-    <h3 style={sTitle}>Monitored Platforms</h3>
-    {['ChatGPT', 'Claude', 'Gemini', 'Copilot', 'Perplexity'].map(p => (
-      <div key={p} style={{ ...toggleRow, justifyContent: 'space-between' }}>
-        <span>{p}</span><span style={{ color: '#22C55E', fontSize: 12 }}>Active</span>
-      </div>
-    ))}
-  </div>
-);
+const PlatformsTab: React.FC<{ settings: UserSettings; setSettings: (s: UserSettings) => void }> = ({ settings, setSettings }) => {
+  const platforms = [
+    { key: 'chatgpt.com', label: 'ChatGPT' },
+    { key: 'claude.ai', label: 'Claude' },
+    { key: 'gemini.google.com', label: 'Gemini' },
+    { key: 'copilot.microsoft.com', label: 'Copilot' },
+    { key: 'perplexity.ai', label: 'Perplexity' },
+    { key: 'poe.com', label: 'Poe' },
+  ];
+  const toggle = (domain: string) => {
+    const list = settings.enabledPlatforms;
+    const next = list.includes(domain) ? list.filter(d => d !== domain) : [...list, domain];
+    setSettings({ ...settings, enabledPlatforms: next });
+  };
+  return (
+    <div>
+      <h3 style={sTitle}>Monitored Platforms</h3>
+      {platforms.map(p => (
+        <label key={p.key} style={toggleRow}>
+          <span>{p.label}</span>
+          <input type="checkbox" checked={settings.enabledPlatforms.includes(p.key)} onChange={() => toggle(p.key)} />
+        </label>
+      ))}
+    </div>
+  );
+};
 
 const NotificationsTab: React.FC<{ settings: UserSettings; setSettings: (s: UserSettings) => void }> = ({ settings, setSettings }) => (
   <div>
@@ -106,6 +128,11 @@ const NotificationsTab: React.FC<{ settings: UserSettings; setSettings: (s: User
       <span>Browser notifications</span>
       <input type="checkbox" checked={settings.notifications.browser}
         onChange={e => setSettings({ ...settings, notifications: { ...settings.notifications, browser: e.target.checked } })} />
+    </label>
+    <label style={toggleRow}>
+      <span>Email notifications</span>
+      <input type="checkbox" checked={settings.notifications.email}
+        onChange={e => setSettings({ ...settings, notifications: { ...settings.notifications, email: e.target.checked } })} />
     </label>
   </div>
 );
@@ -158,7 +185,7 @@ const OrgTab: React.FC<{ userRole: string }> = ({ userRole }) => {
         <input style={inputStyle} placeholder="slug (lowercase, no spaces)" value={newOrg.slug}
           onChange={e => setNewOrg({ ...newOrg, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })} />
         <button onClick={createOrg} style={btnStyle}>Create Organization</button>
-        {msg && <p style={{ color: COLORS.primary, marginTop: 8 }}>{msg}</p>}
+        {msg && <p style={{ color: '#22C55E', marginTop: 8 }}>{msg}</p>}
       </div>
     );
   }
@@ -168,8 +195,8 @@ const OrgTab: React.FC<{ userRole: string }> = ({ userRole }) => {
       <h3 style={sTitle}>{org.name}</h3>
       <p style={{ color: '#6b7280', fontSize: 13 }}>Slug: {org.slug} | Members: {org.members?.length || 0}</p>
       {isAdmin && (
-        <div style={{ marginTop: 12 }}>
-          <h4 style={{ fontSize: 14, marginBottom: 8 }}>Invite Member</h4>
+        <div style={{ marginTop: 16 }}>
+          <h4 style={{ fontSize: 14, fontWeight: 600 }}>Invite Member</h4>
           <div style={{ display: 'flex', gap: 8 }}>
             <input style={{ ...inputStyle, flex: 1 }} placeholder="user@company.com" value={inviteEmail}
               onChange={e => setInviteEmail(e.target.value)} />
@@ -177,13 +204,14 @@ const OrgTab: React.FC<{ userRole: string }> = ({ userRole }) => {
           </div>
         </div>
       )}
-      <h4 style={{ fontSize: 14, marginTop: 16, marginBottom: 8 }}>Members</h4>
+      <h4 style={{ fontSize: 14, fontWeight: 600, marginTop: 16 }}>Members</h4>
       {org.members?.map((m, i) => (
         <div key={i} style={toggleRow}>
-          <span>{m.user.email}</span><span style={{ color: '#6b7280', fontSize: 12 }}>{m.user.role}</span>
+          <span>{m.user.email}</span>
+          <span style={{ color: '#6b7280', fontSize: 12 }}>{m.user.role}</span>
         </div>
       ))}
-      {msg && <p style={{ color: COLORS.primary, marginTop: 8 }}>{msg}</p>}
+      {msg && <p style={{ color: '#22C55E', marginTop: 8 }}>{msg}</p>}
     </div>
   );
 };
@@ -191,7 +219,8 @@ const OrgTab: React.FC<{ userRole: string }> = ({ userRole }) => {
 const AdvancedTab: React.FC<{ settings: UserSettings; setSettings: (s: UserSettings) => void }> = ({ settings, setSettings }) => (
   <div>
     <h3 style={sTitle}>Advanced</h3>
-    <label style={toggleRow}><span>Auto-block critical</span>
+    <label style={toggleRow}>
+      <span>Auto-block critical</span>
       <input type="checkbox" checked={settings.autoBlock}
         onChange={e => setSettings({ ...settings, autoBlock: e.target.checked })} />
     </label>
