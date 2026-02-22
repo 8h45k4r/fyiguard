@@ -1,4 +1,5 @@
 {
+    "$schema": "https://json.schemastore.org/package",
   "name": "fyiguard",
   "version": "1.0.0",
   "description": "FYI Guard - AI Prompt Guardian. Prevent sensitive data leaks to AI tools.",
