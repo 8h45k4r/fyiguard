@@ -86,3 +86,39 @@ eventsRouter.delete('/:id', async (req: AuthRequest, res, next) => {
     res.json({ message: 'Event deleted' });
   } catch (err) { next(err); }
 });
+
+// POST /api/v1/events/batch - batch log detection events
+eventsRouter.post('/batch', async (req: AuthRequest, res, next) => {
+  try {
+    const { events } = req.body as { events: unknown[] };
+    if (!Array.isArray(events) || events.length === 0) {
+      res.status(400).json({ error: 'events array required' });
+      return;
+    }
+    const results = [];
+    for (const raw of events.slice(0, 50)) {
+      const data = eventSchema.parse(raw);
+      const event = await prisma.detectionEvent.create({
+        data: {
+          id: data.id,
+          userId: req.userId!,
+          eventType: data.eventType as 'BLOCK' | 'WARN' | 'ALLOW',
+          category: data.detection.category,
+          confidence: data.detection.confidence,
+          riskLevel: data.detection.riskLevel as 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL',
+          patternMatched: data.detection.patternMatched,
+          sanitizedMatch: data.detection.sanitizedMatch,
+          platform: data.context.platform,
+          url: data.context.url,
+          conversationId: data.context.conversationId ?? null,
+          promptLength: data.context.promptLength,
+          extensionVersion: data.metadata.extensionVersion,
+          browser: data.metadata.browser,
+          userAction: data.metadata.userAction,
+        },
+      });
+      results.push(event);
+    }
+    res.status(201).json({ created: results.length });
+  } catch (err) { next(err); }
+});
