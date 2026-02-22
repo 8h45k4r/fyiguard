@@ -2,20 +2,32 @@
  * FYI Guard - Background Service Worker
  *
  * Handles:
+ * - Auth message routing (LOGIN, REGISTER, LOGOUT, CHECK_AUTH)
  * - Message routing between content scripts and popup
  * - Detection event queuing and batch upload to backend
  * - Badge updates for active detection count
  * - Settings management via chrome.storage
+ * - Behavior tracking sessions
+ * - Admin alert forwarding
+ * - Policy sync on auth
  */
-import { DetectionEvent , BehaviorTrackingEvent} from '../shared/types';
+import { DetectionEvent, BehaviorTrackingEvent } from '../shared/types';
 import { DEFAULT_SETTINGS } from '../shared/defaultPolicy';
 import { API_ENDPOINTS } from '../shared/config';
+import {
+  loginUser,
+  registerUser,
+  saveAuthState,
+  getAuthState,
+  clearAuthState,
+  syncPolicies,
+  syncSettings,
+  authFetch,
+} from '../shared/auth-utils';
 
-/** Maximum events to batch before forcing a flush */
 const MAX_QUEUE_SIZE = 50;
-
-/** Alarm name for periodic event upload */
 const UPLOAD_ALARM = 'upload-events';
+const SYNC_ALARM = 'sync-policies';
 
 class BackgroundService {
   private eventQueue: DetectionEvent[] = [];
@@ -28,19 +40,27 @@ class BackgroundService {
     this.initializeAlarms();
   }
 
-  // ---------------------------------------------------------------------------
-  // Initialization
-  // ---------------------------------------------------------------------------
-
   private initializeListeners(): void {
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       switch (message.type) {
+        case 'LOGIN':
+          this.handleLogin(message.data, sendResponse);
+          return true;
+        case 'REGISTER':
+          this.handleRegister(message.data, sendResponse);
+          return true;
+        case 'LOGOUT':
+          this.handleLogout(sendResponse);
+          return true;
+        case 'CHECK_AUTH':
+          this.handleCheckAuth(sendResponse);
+          return true;
         case 'DETECTION_EVENT':
           this.handleDetectionEvent(message.data);
           break;
         case 'GET_SETTINGS':
           this.handleGetSettings(sendResponse);
-          return true; // Keep channel open for async response
+          return true;
         case 'HEALTH_STATUS':
           console.log('[FYI Guard] Health:', message.data);
           break;
@@ -56,6 +76,12 @@ class BackgroundService {
         case 'SEND_ALERT':
           this.sendAdminAlert(message.data);
           break;
+        case 'SYNC_POLICIES':
+          syncPolicies();
+          break;
+        case 'SETTINGS_UPDATED':
+          chrome.storage.local.set({ settings: message.settings });
+          break;
       }
       return true;
     });
@@ -63,101 +89,121 @@ class BackgroundService {
 
   private initializeAlarms(): void {
     chrome.alarms.create(UPLOAD_ALARM, { periodInMinutes: 1 });
+    chrome.alarms.create(SYNC_ALARM, { periodInMinutes: 15 });
     chrome.alarms.onAlarm.addListener((alarm) => {
       if (alarm.name === UPLOAD_ALARM) this.flushEvents();
+      if (alarm.name === SYNC_ALARM) {
+        syncPolicies();
+        syncSettings();
+      }
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // Event Handling
-  // ---------------------------------------------------------------------------
+  // --- Auth Handlers ---
+
+  private async handleLogin(
+    data: { email: string; password: string },
+    sendResponse: (r: unknown) => void
+  ): Promise<void> {
+    try {
+      const res = await loginUser(data.email, data.password);
+      await saveAuthState(res.token, {
+        userId: res.userId,
+        email: res.email,
+        role: res.role || 'MEMBER',
+      });
+      await syncPolicies();
+      await syncSettings();
+      sendResponse({ success: true, data: res });
+    } catch (err: unknown) {
+      sendResponse({ success: false, error: err instanceof Error ? err.message : 'Login failed' });
+    }
+  }
+
+  private async handleRegister(
+    data: { email: string; password: string; name?: string },
+    sendResponse: (r: unknown) => void
+  ): Promise<void> {
+    try {
+      const res = await registerUser(data.email, data.password, data.name);
+      await saveAuthState(res.token, {
+        userId: res.userId,
+        email: res.email,
+        role: res.role || 'MEMBER',
+      });
+      sendResponse({ success: true, data: res });
+    } catch (err: unknown) {
+      sendResponse({ success: false, error: err instanceof Error ? err.message : 'Registration failed' });
+    }
+  }
+
+  private async handleLogout(sendResponse: (r: unknown) => void): Promise<void> {
+    await clearAuthState();
+    sendResponse({ success: true });
+  }
+
+  private async handleCheckAuth(sendResponse: (r: unknown) => void): Promise<void> {
+    const { token, user } = await getAuthState();
+    sendResponse({
+      isAuthenticated: !!token,
+      token: token || null,
+      user: user || null,
+    });
+  }
+
+  // --- Detection Events ---
 
   private async handleDetectionEvent(event: DetectionEvent): Promise<void> {
     this.eventQueue.push(event);
     chrome.action.setBadgeText({ text: String(this.eventQueue.length) });
     chrome.action.setBadgeBackgroundColor({ color: '#FF4444' });
     await chrome.storage.local.set({ [`event_${event.id}`]: event });
-
-    // Auto-flush if queue is getting large
     if (this.eventQueue.length >= MAX_QUEUE_SIZE) {
       await this.flushEvents();
     }
   }
 
-  private async handleGetSettings(
-    sendResponse: (r: unknown) => void
-  ): Promise<void> {
+  private async handleGetSettings(sendResponse: (r: unknown) => void): Promise<void> {
     const data = await chrome.storage.local.get('settings');
     sendResponse({ settings: data.settings || DEFAULT_SETTINGS });
   }
 
-  // ---------------------------------------------------------------------------
-  // Backend Communication
-  // ---------------------------------------------------------------------------
+  // --- Backend Communication ---
 
-  /**
-   * Flush queued detection events to the backend API.
-   * Silently fails if backend is unreachable (events are lost).
-   * In production, consider adding retry logic or local persistence.
-   */
   private async flushEvents(): Promise<void> {
     if (!this.eventQueue.length) return;
-
     const eventsToSend = [...this.eventQueue];
     this.eventQueue = [];
     chrome.action.setBadgeText({ text: '' });
-
     try {
-      const response = await fetch(API_ENDPOINTS.events, {
+      const response = await authFetch(API_ENDPOINTS.events, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ events: eventsToSend }),
       });
-
       if (!response.ok) {
-        console.warn(
-          `[FYI Guard] Failed to upload events: ${response.status}`
-        );
-        // Re-queue failed events (up to max size)
-        this.eventQueue = [
-          ...eventsToSend.slice(0, MAX_QUEUE_SIZE),
-          ...this.eventQueue,
-        ].slice(0, MAX_QUEUE_SIZE);
+        this.eventQueue = [...eventsToSend.slice(0, MAX_QUEUE_SIZE), ...this.eventQueue].slice(0, MAX_QUEUE_SIZE);
       }
-    } catch (err) {
-      console.warn('[FYI Guard] Backend unreachable:', err);
-      // Re-queue events for next flush attempt
-      this.eventQueue = [
-        ...eventsToSend.slice(0, MAX_QUEUE_SIZE),
-        ...this.eventQueue,
-      ].slice(0, MAX_QUEUE_SIZE);
+    } catch {
+      this.eventQueue = [...eventsToSend.slice(0, MAX_QUEUE_SIZE), ...this.eventQueue].slice(0, MAX_QUEUE_SIZE);
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Behavior Tracking
-  // ---------------------------------------------------------------------------
+  // --- Behavior Tracking ---
 
   private async handleBehaviorEvent(event: BehaviorTrackingEvent): Promise<void> {
     this.behaviorQueue.push(event);
-
-    // Flush behavior events every 10 events
-    if (this.behaviorQueue.length >= 10) {
-      await this.flushBehaviorEvents();
-    }
+    if (this.behaviorQueue.length >= 10) await this.flushBehaviorEvents();
   }
 
   private async handleSessionStart(data: { userId: string; orgId: string; platform: string }): Promise<void> {
     this.activePlatform = data.platform;
     this.sessionStartTime = Date.now();
-
     try {
-      await fetch(`${API_ENDPOINTS.events.replace('/events', '/behavior/session/start')}`, {
+      const baseUrl = API_ENDPOINTS.events.replace('/events', '');
+      await authFetch(`${baseUrl}/behavior/session/start`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      console.log(`[FYI Guard] Session started: ${data.platform}`);
     } catch (err) {
       console.warn('[FYI Guard] Failed to start session:', err);
     }
@@ -165,15 +211,13 @@ class BackgroundService {
 
   private async handleSessionEnd(data: { userId: string; platform: string }): Promise<void> {
     try {
-      await fetch(`${API_ENDPOINTS.events.replace('/events', '/behavior/session/end')}`, {
+      const baseUrl = API_ENDPOINTS.events.replace('/events', '');
+      await authFetch(`${baseUrl}/behavior/session/end`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-
       this.activePlatform = null;
       this.sessionStartTime = null;
-      console.log(`[FYI Guard] Session ended: ${data.platform}`);
     } catch (err) {
       console.warn('[FYI Guard] Failed to end session:', err);
     }
@@ -181,49 +225,37 @@ class BackgroundService {
 
   private async flushBehaviorEvents(): Promise<void> {
     if (!this.behaviorQueue.length) return;
-
     const eventsToSend = [...this.behaviorQueue];
     this.behaviorQueue = [];
-
     try {
+      const baseUrl = API_ENDPOINTS.events.replace('/events', '');
       for (const event of eventsToSend) {
-        await fetch(`${API_ENDPOINTS.events.replace('/events', '/behavior/event')}`, {
+        await authFetch(`${baseUrl}/behavior/event`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(event),
         });
       }
-    } catch (err) {
-      console.warn('[FYI Guard] Failed to flush behavior events:', err);
+    } catch {
       this.behaviorQueue = [...eventsToSend, ...this.behaviorQueue];
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Admin Alert Sending
-  // ---------------------------------------------------------------------------
+  // --- Admin Alerts ---
 
   private async sendAdminAlert(data: {
-    orgId: string;
-    userId: string;
-    category: string;
-    riskLevel: string;
-    platform: string;
-    details: string;
-    eventId?: string;
+    orgId: string; userId: string; category: string;
+    riskLevel: string; platform: string; details: string;
   }): Promise<void> {
     try {
-      await fetch(`${API_ENDPOINTS.events.replace('/events', '/alerts')}`, {
+      const baseUrl = API_ENDPOINTS.events.replace('/events', '');
+      await authFetch(`${baseUrl}/alerts`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      console.log(`[FYI Guard] Alert sent for org: ${data.orgId}`);
     } catch (err) {
-      console.warn('[FYI Guard] Failed to send admin alert:', err);
+      console.warn('[FYI Guard] Failed to send alert:', err);
     }
   }
 }
 
-// Instantiate the background service
 new BackgroundService();

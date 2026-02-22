@@ -1,18 +1,10 @@
 /**
  * FYI Guard - Backend API Server
- *
- * Entry point for the FYI Guard backend API.
- * Configures Express with security middleware, route handlers,
- * and database connectivity via Prisma + Supabase.
  */
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-
-// Database
 import { prisma } from './lib/prisma';
-
-// Middleware
 import { errorHandler } from './middleware/errorHandler';
 import { rateLimiter } from './middleware/rateLimiter';
 import { requestLogger } from './middleware/logger';
@@ -29,17 +21,15 @@ import { scanRouter } from './routes/scan';
 import { guardRouter } from './routes/guard';
 import alertsRouter from './routes/alerts';
 import behaviorRouter from './routes/behavior';
+import { orgRouter } from './routes/organizations';
 
-// Re-export prisma for use in other modules
 export { prisma };
 
 const app = express();
 const PORT = parseInt(process.env['PORT'] ?? '3001', 10);
 const API_PREFIX = '/api/v1';
 
-// ---------------------------------------------------------------------------
 // Global Middleware
-// ---------------------------------------------------------------------------
 app.use(helmet());
 app.use(cors({
   origin: process.env['CORS_ORIGIN'] || '*',
@@ -52,15 +42,11 @@ app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 app.use(rateLimiter);
 
-// ---------------------------------------------------------------------------
-// Routes
-// ---------------------------------------------------------------------------
-
-// Public
+// Public routes
 app.use(`${API_PREFIX}/health`, healthRouter);
 app.use(`${API_PREFIX}/auth`, authRouter);
 
-// Protected
+// Protected routes
 app.use(`${API_PREFIX}/events`, authenticate, eventsRouter);
 app.use(`${API_PREFIX}/settings`, authenticate, settingsRouter);
 app.use(`${API_PREFIX}/policies`, authenticate, policiesRouter);
@@ -69,17 +55,13 @@ app.use(`${API_PREFIX}/scan`, authenticate, scanRouter);
 app.use(`${API_PREFIX}/guard`, authenticate, guardRouter);
 app.use(`${API_PREFIX}/alerts`, authenticate, alertsRouter);
 app.use(`${API_PREFIX}/behavior`, authenticate, behaviorRouter);
+app.use(`${API_PREFIX}/organizations`, authenticate, orgRouter);
 
-// Error handler (must be last)
 app.use(errorHandler);
 
-// ---------------------------------------------------------------------------
-// Server Startup
-// ---------------------------------------------------------------------------
 async function main() {
   await prisma.$connect();
   console.log('[FYI Guard] Database connected');
-
   app.listen(PORT, () => {
     console.log(`[FYI Guard] API server running on port ${PORT}`);
     console.log(`[FYI Guard] API prefix: ${API_PREFIX}`);

@@ -3,16 +3,22 @@ import { createRoot } from 'react-dom/client';
 import { UserSettings } from '../shared/types';
 import { DEFAULT_SETTINGS } from '../shared/defaultPolicy';
 import { COLORS, BRAND } from '../shared/theme';
+import { authFetch, getAuthState } from '../shared/auth-utils';
+import { API_ENDPOINTS } from '../shared/config';
+
+type Tab = 'detection' | 'platforms' | 'notifications' | 'organization' | 'advanced';
 
 const Options: React.FC = () => {
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [saved, setSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<'detection' | 'platforms' | 'notifications' | 'advanced'>('detection');
+  const [activeTab, setActiveTab] = useState<Tab>('detection');
+  const [user, setUser] = useState<{ email: string; role: string } | null>(null);
 
   useEffect(() => {
     chrome.storage.local.get(['settings'], (data) => {
       if (data.settings) setSettings(data.settings);
     });
+    getAuthState().then(({ user: u }) => { if (u) setUser({ email: u.email, role: u.role }); });
   }, []);
 
   const save = () => {
@@ -23,124 +29,181 @@ const Options: React.FC = () => {
     });
   };
 
-  const reset = () => {
-    setSettings(DEFAULT_SETTINGS);
-    chrome.storage.local.set({ settings: DEFAULT_SETTINGS });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
   return (
-    <div style={{ fontFamily: "'Outfit', sans-serif", maxWidth: 720, margin: '0 auto', padding: 32, background: '#f8f9fa', minHeight: '100vh' }}>
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ color: COLORS.primary, fontSize: 28, margin: 0 }}>FYI Guard Settings</h1>
-        <p style={{ color: '#6b7280', marginTop: 4 }}>Configure detection rules, platform settings, and notifications</p>
-      </div>
+    <div style={{ fontFamily: "'Outfit', sans-serif", maxWidth: 720, margin: '0 auto', padding: 24 }}>
+      <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1a1a2e', marginBottom: 4 }}>FYI Guard Settings</h1>
+      <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>
+        Configure detection, platforms, org, and notifications. {user && <span>({user.email} - {user.role})</span>}
+      </p>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24, borderBottom: '1px solid #e5e7eb', paddingBottom: 8 }}>
-        {(['detection', 'platforms', 'notifications', 'advanced'] as const).map(tab => (
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+        {(['detection', 'platforms', 'notifications', 'organization', 'advanced'] as Tab[]).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)} style={{
-            padding: '8px 16px', border: 'none', cursor: 'pointer', borderRadius: '6px 6px 0 0',
+            padding: '8px 14px', border: 'none', cursor: 'pointer', borderRadius: '6px 6px 0 0',
             background: activeTab === tab ? COLORS.primary : 'transparent',
             color: activeTab === tab ? '#fff' : '#6b7280',
-            fontWeight: activeTab === tab ? 600 : 400,
-            fontFamily: "'Outfit', sans-serif", fontSize: 14, textTransform: 'capitalize',
+            fontWeight: activeTab === tab ? 600 : 400, fontSize: 13, textTransform: 'capitalize',
           }}>{tab}</button>
         ))}
       </div>
 
-      {activeTab === 'detection' && (
-        <div style={cardStyle}>
-          <h3 style={sectionTitle}>Detection Categories</h3>
-          <p style={sectionDesc}>Choose which types of sensitive data to detect</p>
-          {Object.entries(settings.categories).map(([key, val]) => (
-            <label key={key} style={toggleRow}>
-              <span style={{ textTransform: 'capitalize' }}>{key.replace(/_/g, ' ')}</span>
-              <input type="checkbox" checked={val as boolean}
-                onChange={e => setSettings({ ...settings, categories: { ...settings.categories, [key]: e.target.checked } })} />
-            </label>
-          ))}
-          <h3 style={{ ...sectionTitle, marginTop: 24 }}>Sensitivity Level</h3>
-          <select value={settings.sensitivity}
-            onChange={e => setSettings({ ...settings, sensitivity: e.target.value as any })}
-            style={selectStyle}>
-            <option value="LOW">Low - Only high-confidence matches</option>
-            <option value="MEDIUM">Medium - Balanced detection</option>
-            <option value="HIGH">High - Aggressive, may have false positives</option>
-          </select>
-        </div>
-      )}
-
-      {activeTab === 'platforms' && (
-        <div style={cardStyle}>
-          <h3 style={sectionTitle}>Monitored Platforms</h3>
-          <p style={sectionDesc}>FYI Guard monitors these AI platforms</p>
-          {['ChatGPT', 'Claude', 'Gemini', 'Copilot', 'Perplexity'].map(p => (
-            <div key={p} style={{ ...toggleRow, justifyContent: 'space-between' }}>
-              <span>{p}</span>
-              <span style={{ color: COLORS.primary, fontSize: 12 }}>Active</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {activeTab === 'notifications' && (
-        <div style={cardStyle}>
-          <h3 style={sectionTitle}>Notification Settings</h3>
-          <label style={toggleRow}>
-            <span>Browser notifications</span>
-            <input type="checkbox" checked={settings.notifications.browser}
-              onChange={e => setSettings({ ...settings, notifications: { ...settings.notifications, browser: e.target.checked } })} />
-          </label>
-          <label style={toggleRow}>
-            <span>Sound alerts</span>
-            <input type="checkbox" checked={settings.notifications.sound || false}
-              onChange={e => setSettings({ ...settings, notifications: { ...settings.notifications, sound: e.target.checked } })} />
-          </label>
-        </div>
-      )}
-
-      {activeTab === 'advanced' && (
-        <div style={cardStyle}>
-          <h3 style={sectionTitle}>Advanced Settings</h3>
-          <label style={toggleRow}>
-            <span>Auto-block critical findings</span>
-            <input type="checkbox" checked={settings.autoBlock}
-              onChange={e => setSettings({ ...settings, autoBlock: e.target.checked })} />
-          </label>
-          <label style={toggleRow}>
-            <span>Log events locally</span>
-            <input type="checkbox" checked={settings.logEvents !== false}
-              onChange={e => setSettings({ ...settings, logEvents: e.target.checked })} />
-          </label>
-          <button onClick={reset} style={{ marginTop: 16, padding: '8px 16px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
-            Reset to Defaults
-          </button>
-        </div>
-      )}
-
-      <div style={{ marginTop: 24, display: 'flex', gap: 12, alignItems: 'center' }}>
-        <button onClick={save} style={{ padding: '10px 24px', background: COLORS.primary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontFamily: "'Outfit', sans-serif", fontSize: 15 }}>
-          Save Settings
-        </button>
-        {saved && <span style={{ color: COLORS.primary, fontWeight: 500 }}>Settings saved!</span>}
+      <div style={cardStyle}>
+        {activeTab === 'detection' && <DetectionTab settings={settings} setSettings={setSettings} />}
+        {activeTab === 'platforms' && <PlatformsTab />}
+        {activeTab === 'notifications' && <NotificationsTab settings={settings} setSettings={setSettings} />}
+        {activeTab === 'organization' && <OrgTab userRole={user?.role || 'MEMBER'} />}
+        {activeTab === 'advanced' && <AdvancedTab settings={settings} setSettings={setSettings} />}
       </div>
 
-      <div style={{ marginTop: 48, textAlign: 'center', color: '#9ca3af', fontSize: 12 }}>
-        FYI Guard v1.0.0 | Powered by <a href={BRAND.website} target="_blank" style={{ color: COLORS.primary }}>{BRAND.name}</a>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
+        <button onClick={save} style={{
+          padding: '10px 24px', background: COLORS.primary, color: '#fff', border: 'none',
+          borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14,
+        }}>Save Settings</button>
+        {saved && <span style={{ color: '#22C55E', fontWeight: 600 }}>Saved!</span>}
+      </div>
+
+      <div style={{ marginTop: 24, color: '#9CA3AF', fontSize: 12, textAlign: 'center' }}>
+        FYI Guard v1.0.0 | <a href={BRAND.website} target="_blank" style={{ color: COLORS.primary }}>{BRAND.name}</a>
       </div>
     </div>
   );
 };
 
+const DetectionTab: React.FC<{ settings: UserSettings; setSettings: (s: UserSettings) => void }> = ({ settings, setSettings }) => (
+  <div>
+    <h3 style={sTitle}>Detection Categories</h3>
+    {Object.entries(settings.categories).map(([key, val]) => (
+      <label key={key} style={toggleRow}>
+        <span>{key.replace(/_/g, ' ')}</span>
+        <input type="checkbox" checked={val as boolean}
+          onChange={e => setSettings({ ...settings, categories: { ...settings.categories, [key]: e.target.checked } })} />
+      </label>
+    ))}
+    <h3 style={{ ...sTitle, marginTop: 16 }}>Sensitivity</h3>
+    <select value={settings.sensitivity}
+      onChange={e => setSettings({ ...settings, sensitivity: e.target.value as 'LOW' | 'MEDIUM' | 'HIGH' })} style={selStyle}>
+      <option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option>
+    </select>
+  </div>
+);
+
+const PlatformsTab: React.FC = () => (
+  <div>
+    <h3 style={sTitle}>Monitored Platforms</h3>
+    {['ChatGPT', 'Claude', 'Gemini', 'Copilot', 'Perplexity'].map(p => (
+      <div key={p} style={{ ...toggleRow, justifyContent: 'space-between' }}>
+        <span>{p}</span><span style={{ color: '#22C55E', fontSize: 12 }}>Active</span>
+      </div>
+    ))}
+  </div>
+);
+
+const NotificationsTab: React.FC<{ settings: UserSettings; setSettings: (s: UserSettings) => void }> = ({ settings, setSettings }) => (
+  <div>
+    <h3 style={sTitle}>Notification Settings</h3>
+    <label style={toggleRow}>
+      <span>Browser notifications</span>
+      <input type="checkbox" checked={settings.notifications.browser}
+        onChange={e => setSettings({ ...settings, notifications: { ...settings.notifications, browser: e.target.checked } })} />
+    </label>
+  </div>
+);
+
+const OrgTab: React.FC<{ userRole: string }> = ({ userRole }) => {
+  const [org, setOrg] = useState<{ id: string; name: string; slug: string; members: { user: { email: string; role: string } }[] } | null>(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [msg, setMsg] = useState('');
+  const [newOrg, setNewOrg] = useState({ name: '', slug: '' });
+  const isAdmin = userRole === 'ADMIN';
+  const baseUrl = API_ENDPOINTS.events.replace('/events', '');
+
+  useEffect(() => {
+    authFetch(`${baseUrl}/organizations/mine`).then(r => r.json()).then(data => {
+      if (data.organizations?.length > 0) setOrg(data.organizations[0].org);
+    }).catch(() => {});
+  }, []);
+
+  const createOrg = async () => {
+    if (!newOrg.name || !newOrg.slug) return;
+    const res = await authFetch(`${baseUrl}/organizations`, {
+      method: 'POST', body: JSON.stringify(newOrg),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setOrg(data.org);
+      setMsg('Organization created!');
+    } else {
+      const err = await res.json();
+      setMsg(err.message || 'Failed');
+    }
+  };
+
+  const invite = async () => {
+    if (!inviteEmail || !org) return;
+    const res = await authFetch(`${baseUrl}/organizations/${org.id}/invite`, {
+      method: 'POST', body: JSON.stringify({ email: inviteEmail, role: 'member' }),
+    });
+    const data = await res.json();
+    setMsg(data.message || 'Done');
+    setInviteEmail('');
+  };
+
+  if (!org) {
+    return (
+      <div>
+        <h3 style={sTitle}>Create Organization</h3>
+        <input style={inputStyle} placeholder="Organization Name" value={newOrg.name}
+          onChange={e => setNewOrg({ ...newOrg, name: e.target.value })} />
+        <input style={inputStyle} placeholder="slug (lowercase, no spaces)" value={newOrg.slug}
+          onChange={e => setNewOrg({ ...newOrg, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })} />
+        <button onClick={createOrg} style={btnStyle}>Create Organization</button>
+        {msg && <p style={{ color: COLORS.primary, marginTop: 8 }}>{msg}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h3 style={sTitle}>{org.name}</h3>
+      <p style={{ color: '#6b7280', fontSize: 13 }}>Slug: {org.slug} | Members: {org.members?.length || 0}</p>
+      {isAdmin && (
+        <div style={{ marginTop: 12 }}>
+          <h4 style={{ fontSize: 14, marginBottom: 8 }}>Invite Member</h4>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input style={{ ...inputStyle, flex: 1 }} placeholder="user@company.com" value={inviteEmail}
+              onChange={e => setInviteEmail(e.target.value)} />
+            <button onClick={invite} style={btnStyle}>Invite</button>
+          </div>
+        </div>
+      )}
+      <h4 style={{ fontSize: 14, marginTop: 16, marginBottom: 8 }}>Members</h4>
+      {org.members?.map((m, i) => (
+        <div key={i} style={toggleRow}>
+          <span>{m.user.email}</span><span style={{ color: '#6b7280', fontSize: 12 }}>{m.user.role}</span>
+        </div>
+      ))}
+      {msg && <p style={{ color: COLORS.primary, marginTop: 8 }}>{msg}</p>}
+    </div>
+  );
+};
+
+const AdvancedTab: React.FC<{ settings: UserSettings; setSettings: (s: UserSettings) => void }> = ({ settings, setSettings }) => (
+  <div>
+    <h3 style={sTitle}>Advanced</h3>
+    <label style={toggleRow}><span>Auto-block critical</span>
+      <input type="checkbox" checked={settings.autoBlock}
+        onChange={e => setSettings({ ...settings, autoBlock: e.target.checked })} />
+    </label>
+  </div>
+);
+
 const cardStyle: React.CSSProperties = { background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' };
-const sectionTitle: React.CSSProperties = { fontSize: 16, fontWeight: 600, color: '#1a1a2e', margin: '0 0 4px' };
-const sectionDesc: React.CSSProperties = { fontSize: 13, color: '#6b7280', margin: '0 0 16px' };
-const toggleRow: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f3f4f6', cursor: 'pointer' };
-const selectStyle: React.CSSProperties = { width: '100%', padding: 10, borderRadius: 8, border: '1px solid #ddd', fontFamily: "'Outfit', sans-serif", fontSize: 14 };
+const sTitle: React.CSSProperties = { fontSize: 16, fontWeight: 600, color: '#1a1a2e', margin: '0 0 12px' };
+const toggleRow: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f3f4f6' };
+const selStyle: React.CSSProperties = { width: '100%', padding: 10, borderRadius: 8, border: '1px solid #ddd', fontSize: 14 };
+const inputStyle: React.CSSProperties = { width: '100%', padding: 10, borderRadius: 8, border: '1px solid #ddd', fontSize: 14, marginBottom: 8, boxSizing: 'border-box' };
+const btnStyle: React.CSSProperties = { padding: '10px 16px', background: COLORS.primary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14 };
 
 const container = document.getElementById('root');
-if (container) {
-  const root = createRoot(container);
-  root.render(<Options />);
-}
+if (container) { createRoot(container).render(<Options />); }
