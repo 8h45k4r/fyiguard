@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  orgId     String?
+  role      Role     @default(MEMBER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  settings  UserSettings?
+  events    DetectionEvent[]
+  policies  Policy[]
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+model UserSettings {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sensitivity         Sensitivity @default(MEDIUM)
+  autoBlock           Boolean  @default(true)
+  pii                 Boolean  @default(true)
+  financial           Boolean  @default(true)
+  credentials         Boolean  @default(true)
+  medical             Boolean  @default(true)
+  proprietary         Boolean  @default(true)
+  emailNotifications  Boolean  @default(false)
+  browserNotifications Boolean @default(true)
+  whitelistedDomains  String[] @default([])
+  enabledPlatforms    String[] @default(["chatgpt", "claude", "gemini"])
+  updatedAt           DateTime @updatedAt
+
+  @@map("user_settings")
+}
+
+enum Sensitivity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model DetectionEvent {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventType       EventType
+  category        String
+  confidence      Float
+  riskLevel       RiskLevel
+  patternMatched  String
+  sanitizedMatch  String
+  platform        String
+  url             String
+  conversationId  String?
+  promptLength    Int
+  userAction      String        @default("attempted_send")
+  extensionVersion String
+  browser         String
+  createdAt       DateTime      @default(now())
+
+  @@index([userId, createdAt])
+  @@index([category])
+  @@index([riskLevel])
+  @@map("detection_events")
+}
+
+enum EventType {
+  BLOCK
+  WARN
+  ALLOW
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Policy {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  enabled   Boolean      @default(true)
+  platforms String[]     @default([])
+  rules     PolicyRule[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@map("policies")
+}
+
+model PolicyRule {
+  id         String @id @default(cuid())
+  policyId   String
+  policy     Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  category   String
+  action     PolicyAction @default(BLOCK)
+  exceptions String[] @default([])
+
+  @@map("policy_rules")
+}
+
+enum PolicyAction {
+  BLOCK
+  WARN
+  ALLOW
+}
