@@ -21,8 +21,7 @@ class BackgroundService {
           console.log('[FYI Guard] Health:', message.data);
           break;
       }
-            return true;52
-
+      return true;
     });
 
     chrome.alarms.create('upload-events', { periodInMinutes: 1 });
@@ -49,4 +48,5 @@ class BackgroundService {
     chrome.action.setBadgeText({ text: '' });
   }
 }
+
 new BackgroundService();
