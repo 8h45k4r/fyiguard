@@ -1,46 +1,34 @@
-import { PATTERN_DEFINITIONS, PatternDefinition } from '../shared/patterns';
-import { Detection, ScanResult, UserSettings, RiskLevel, DetectionCategory } from '../shared/types';
-
-const CRITICAL_PATTERNS: Record<string, boolean> = {
-  ssn: true,
-  credit_card: true,
-  api_key: true,
-  private_key: true,
-  password_inline: true,
-};
+import { PATTERN_DEFINITIONS, PatternDefinition, CategoryGroup } from '../shared/patterns';
+import { Detection, ScanResult, UserSettings, RiskLevel } from '../shared/types';
 
 export class PromptDetector {
-  private patterns: Array<{ def: PatternDefinition; compiled: RegExp }>;
+  private patterns: PatternDefinition[];
 
   constructor() {
-    this.patterns = PATTERN_DEFINITIONS.map((def) => ({
-      def,
-      compiled: new RegExp(def.pattern, def.flags),
-    }));
+    this.patterns = PATTERN_DEFINITIONS;
   }
 
   async scanText(text: string, settings: UserSettings): Promise<ScanResult> {
     const startTime = performance.now();
     const detections: Detection[] = [];
 
-    for (const { def, compiled } of this.patterns) {
-      if (!this.isCategoryEnabled(def.category, settings)) continue;
+    for (const def of this.patterns) {
+      if (!this.isCategoryEnabled(def.categoryGroup, settings)) continue;
 
-      compiled.lastIndex = 0;
+      const regex = new RegExp(def.regex.source, def.regex.flags);
       let match: RegExpExecArray | null;
 
-      while ((match = compiled.exec(text)) !== null) {
-        const confidence = this.calculateConfidence(match, def);
+      while ((match = regex.exec(text)) !== null) {
         detections.push({
           category: def.category,
-          confidence,
-          riskLevel: this.getRiskLevel(def.name, confidence),
+          confidence: this.getConfidence(def.risk, match[0]),
+          riskLevel: def.risk,
           patternMatched: match[0],
           sanitizedMatch: match[0].replace(/./g, 'X').substring(0, 20),
           position: { start: match.index, length: match[0].length },
         });
 
-        if (!def.flags.includes('g')) break;
+        if (!regex.global) break;
       }
     }
 
@@ -53,34 +41,17 @@ export class PromptDetector {
     };
   }
 
-  private isCategoryEnabled(category: DetectionCategory, settings: UserSettings): boolean {
-    const categoryMap: Record<DetectionCategory, keyof UserSettings['categories']> = {
-      pii: 'pii',
-      financial: 'financial',
-      credentials: 'credentials',
-      medical: 'medical',
-      proprietary: 'proprietary',
+  private isCategoryEnabled(group: CategoryGroup, settings: UserSettings): boolean {
+    return settings.categories[group] ?? true;
+  }
+
+  private getConfidence(risk: RiskLevel, matched: string): number {
+    const base: Record<RiskLevel, number> = {
+      CRITICAL: 0.95, HIGH: 0.8, MEDIUM: 0.6, LOW: 0.4,
     };
-    return settings.categories[categoryMap[category]] ?? true;
-  }
-
-  private calculateConfidence(match: RegExpExecArray, def: PatternDefinition): number {
-    let confidence = def.baseConfidence;
-    const fullMatch = match[0];
-
-    if (fullMatch.length > 8) confidence += 0.05;
-    if (def.contextHints.some((hint) => fullMatch.toLowerCase().includes(hint))) {
-      confidence += 0.1;
-    }
-
-    return Math.min(1, Math.max(0, confidence));
-  }
-
-  private getRiskLevel(name: string, confidence: number): RiskLevel {
-    if (CRITICAL_PATTERNS[name] && confidence > 0.8) return 'CRITICAL';
-    if (confidence > 0.7) return 'HIGH';
-    if (confidence > 0.5) return 'MEDIUM';
-    return 'LOW';
+    let confidence = base[risk];
+    if (matched.length > 20) confidence += 0.03;
+    return Math.min(1, confidence);
   }
 
   private shouldBlock(detections: Detection[], settings: UserSettings): boolean {
@@ -90,8 +61,8 @@ export class PromptDetector {
 
   private calculateOverallRisk(detections: Detection[]): number {
     if (!detections.length) return 0;
-    const weights: Record<string, number> = { CRITICAL: 1, HIGH: 0.7, MEDIUM: 0.4, LOW: 0.1 };
-    const total = detections.reduce((s, d) => s + (weights[d.riskLevel] || 0), 0);
+    const w: Record<string, number> = { CRITICAL: 1, HIGH: 0.7, MEDIUM: 0.4, LOW: 0.1 };
+    const total = detections.reduce((s, d) => s + (w[d.riskLevel] || 0), 0);
     return Math.min(1, total / detections.length);
   }
 }

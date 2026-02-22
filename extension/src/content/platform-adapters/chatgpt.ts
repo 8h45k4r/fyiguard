@@ -1,5 +1,5 @@
-// FYI Guard - ChatGPT Platform Adapter
 import { PlatformAdapter, Detection } from '../../shared/types';
+import { BRAND } from '../../shared/theme';
 
 export class ChatGPTAdapter implements PlatformAdapter {
   getPromptInputSelector(): string {
@@ -15,31 +15,36 @@ export class ChatGPTAdapter implements PlatformAdapter {
     return el?.textContent || (el as HTMLTextAreaElement)?.value || '';
   }
 
-  interceptSubmit(callback: (text: string) => boolean): void {
+  interceptSubmit(callback: (text: string) => Promise<boolean>): void {
     const observer = new MutationObserver(() => {
       const btn = document.querySelector(this.getSubmitButtonSelector());
       if (btn && !btn.hasAttribute('data-fyiguard')) {
         btn.setAttribute('data-fyiguard', 'true');
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', async (e) => {
           const text = this.extractPromptText();
-          if (text && !callback(text)) {
-            e.preventDefault();
-            e.stopPropagation();
+          if (text) {
+            const allowed = await callback(text);
+            if (!allowed) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
           }
         }, { capture: true });
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });
 
-    // Also intercept Enter key in textarea
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', async (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         const el = document.activeElement;
         if (el?.matches(this.getPromptInputSelector())) {
           const text = this.extractPromptText();
-          if (text && !callback(text)) {
-            e.preventDefault();
-            e.stopPropagation();
+          if (text) {
+            const allowed = await callback(text);
+            if (!allowed) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
           }
         }
       }
@@ -53,17 +58,16 @@ export class ChatGPTAdapter implements PlatformAdapter {
     const overlay = document.createElement('div');
     overlay.className = 'fyiguard-overlay';
     overlay.innerHTML = `
-      <div class="fyiguard-notification">
-        <div class="fyiguard-header">
-          <img src="https://certifyi.ai/wp-content/uploads/2025/01/logoblue.svg" alt="FYI Guard" height="24" />
-          <h3>Sensitive Data Detected</h3>
-        </div>
+      <div class="fyiguard-warning-card">
+        <img src="${BRAND.logoUrl}" alt="FYI Guard" height="24" />
+        <h2>Sensitive Data Detected</h2>
         <p>${detections.length} sensitive item(s) found in your prompt.</p>
-        <ul>${detections.map(d => `<li><strong>${d.category}</strong> (${Math.round(d.confidence * 100)}% confidence)</li>`).join('')}</ul>
-        <div class="fyiguard-actions">
-          <button class="fyiguard-btn-primary" onclick="this.closest('.fyiguard-overlay').remove()">Edit Prompt</button>
-          <button class="fyiguard-btn-secondary" id="fyiguard-details">View Details</button>
+        <div class="fyiguard-detections">
+          ${detections.map(d =>
+            `<div class="fyiguard-detection-item"><strong>${d.category}</strong> (${Math.round(d.confidence * 100)}%)</div>`
+          ).join('')}
         </div>
+        <button class="fyiguard-btn fyiguard-btn-block" onclick="this.closest('.fyiguard-overlay').remove()">Edit Prompt</button>
       </div>
     `;
     document.body.appendChild(overlay);

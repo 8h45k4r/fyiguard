@@ -25,16 +25,13 @@ module.exports = {
         use: 'ts-loader',
         exclude: /node_modules/,
       },
-      {
-        test: /\.css$/,
-        use: ['style-loader', 'css-loader'],
-      },
     ],
   },
   plugins: [
     new CopyPlugin({
       patterns: [
         { from: 'manifest.json', to: 'manifest.json' },
+        { from: 'src/content/content.css', to: 'content.css' },
         { from: 'public', to: 'public', noErrorOnMissing: true },
       ],
     }),

@@ -1,25 +1,11 @@
-// FYI Guard - TypeScript Types
-// Branding: Primary #368F4D | Font: Outfit | Logo: Certifyi
-
 export type DetectionCategory =
-  | 'CREDIT_CARD'
-  | 'SSN'
-  | 'DB_CREDENTIALS'
-  | 'API_KEY'
-  | 'PRIVATE_KEY'
-  | 'PII'
-  | 'PHI'
-  | 'EMAIL'
-  | 'PHONE'
-  | 'ADDRESS'
-  | 'CONFIDENTIAL'
-  | 'INTERNAL_URL'
-  | 'CODE_BLOCK'
-  | 'JWT_TOKEN';
+  | 'CREDIT_CARD' | 'SSN' | 'DB_CREDENTIALS' | 'API_KEY'
+  | 'PRIVATE_KEY' | 'PII' | 'PHI' | 'EMAIL' | 'PHONE'
+  | 'ADDRESS' | 'CONFIDENTIAL' | 'INTERNAL_URL'
+  | 'CODE_BLOCK' | 'JWT_TOKEN';
 
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type EventType = 'BLOCK' | 'WARN' | 'ALLOW';
-export type SubscriptionTier = 'FREE' | 'PRO' | 'ENTERPRISE';
 export type Sensitivity = 'LOW' | 'MEDIUM' | 'HIGH';
 export type PolicyAction = 'BLOCK' | 'WARN' | 'ALLOW';
 export type UserAction = 'attempted_send' | 'copy_paste' | 'file_upload';
@@ -41,6 +27,23 @@ export interface ScanResult {
   processingTime: number;
 }
 
+export interface CategorySettings {
+  pii: boolean;
+  financial: boolean;
+  credentials: boolean;
+  medical: boolean;
+  proprietary: boolean;
+}
+
+export interface UserSettings {
+  categories: CategorySettings;
+  notifications: { email: boolean; browser: boolean };
+  sensitivity: Sensitivity;
+  autoBlock: boolean;
+  whitelistedDomains: string[];
+  enabledPlatforms: string[];
+}
+
 export interface EventContext {
   platform: string;
   url: string;
@@ -56,7 +59,6 @@ export interface EventMetadata {
 
 export interface DetectionEvent {
   id: string;
-  userId?: string;
   eventType: EventType;
   timestamp: Date;
   detection: Detection;
@@ -68,77 +70,31 @@ export interface PolicyRule {
   category: DetectionCategory;
   action: PolicyAction;
   exceptions: string[];
-  customMessage?: string;
 }
 
 export interface Policy {
   id: string;
-  userId: string;
   name: string;
   enabled: boolean;
   rules: PolicyRule[];
   platforms: string[];
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface UserSettings {
-  notifications: {
-    email: boolean;
-    browser: boolean;
-    slack?: string;
-  };
-  sensitivity: Sensitivity;
-  autoBlock: boolean;
-  whitelistedDomains: string[];
-  enabledPlatforms: string[];
-}
-
-export interface User {
-  id: string;
-  certifyiUserId?: string;
-  email: string;
-  subscriptionTier: SubscriptionTier;
-  createdAt: Date;
-  updatedAt: Date;
-  lastActiveAt?: Date;
-  settings: UserSettings;
 }
 
 export interface PlatformAdapter {
   getPromptInputSelector(): string;
   getSubmitButtonSelector(): string;
   extractPromptText(): string;
-  interceptSubmit(callback: (text: string) => boolean): void;
+  interceptSubmit(callback: (text: string) => Promise<boolean>): void;
   showBlockedNotification(detections: Detection[]): void;
   getConversationId(): string | null;
   getPlatformName(): string;
 }
 
-export interface ContextAnalysis {
-  matched: boolean;
-  confidence: number;
-  shouldBlock: boolean;
-  context: string;
-}
-
-export interface AnalyticsSummary {
-  period: { start: string; end: string };
-  summary: {
-    totalEvents: number;
-    blocked: number;
-    warnings: number;
-    platforms: Record<string, number>;
-    topCategories: Array<{ category: string; count: number; percent: number }>;
-  };
-  trends: { daily: Array<{ date: string; events: number }> };
-}
-
 export interface ExtensionState {
   isEnabled: boolean;
-  user: User | null;
+  user: null;
   policies: Policy[];
   recentEvents: DetectionEvent[];
-  analyticsCache: AnalyticsSummary | null;
+  analyticsCache: null;
   lastSync: Date | null;
 }
