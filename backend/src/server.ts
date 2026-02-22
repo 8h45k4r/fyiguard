@@ -22,6 +22,7 @@ import { guardRouter } from './routes/guard';
 import alertsRouter from './routes/alerts';
 import behaviorRouter from './routes/behavior';
 import { orgRouter } from './routes/organizations';
+import stripeRouter from './routes/stripe';
 
 export { prisma };
 
@@ -31,6 +32,9 @@ const API_PREFIX = '/api/v1';
 
 // Global Middleware
 app.use(helmet());
+app.use(`${API_PREFIX}/stripe`, authenticate, stripeRouter);
+// Stripe webhook needs raw body - register before json middleware at startup
+app.use(`${API_PREFIX}/stripe/webhook`, express.raw({ type: 'application/json' }), stripeRouter);
 app.use(cors({
   origin: process.env['CORS_ORIGIN'] || '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],

@@ -6,6 +6,7 @@ export const BRAND = {
   tagline: 'AI Prompt Guardian',
   logoUrl: 'https://certifyi.ai/wp-content/uploads/2025/01/logoblue.svg',
   website: 'https://certifyi.ai',
+  privacyUrl: 'https://learn.certifyi.ai/fyi-guard/privacy-policy/',
   poweredBy: 'Certifyi.ai',
 } as const;
 

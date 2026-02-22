@@ -7,7 +7,10 @@
   "scripts": {
     "dev": "cd extension && webpack --mode development --watch",
     "build": "cd extension && webpack --mode production",
-    "clean": "rm -rf extension/dist"
+    "clean": "rm -rf extension/dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.268",
@@ -20,7 +23,11 @@
     "ts-loader": "^9.5.1",
     "typescript": "^5.4.2",
     "webpack": "^5.90.3",
-    "webpack-cli": "^5.1.4"
+    "webpack-cli": "^5.1.4",
+    "vitest": "^1.6.0",
+    "@vitest/coverage-v8": "^1.6.0",
+    "@playwright/test": "^1.44.0",
+    "jsdom": "^24.1.0"
   },
   "dependencies": {
     "react": "^18.2.0",

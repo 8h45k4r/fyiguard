@@ -6,19 +6,37 @@ import { COLORS, BRAND } from '../shared/theme';
 import AuthScreen from './AuthScreen';
 
 const P = COLORS.primary;
+const FREE_SCAN_LIMIT = 5;
 
 interface AuthState {
   isAuthenticated: boolean;
   user: { userId: string; email: string; role: string } | null;
 }
 
+interface PlanState {
+  plan: 'free' | 'pro';
+  scansToday: number;
+  scanLimit: number;
+}
+
 const App: React.FC = () => {
   const [auth, setAuth] = useState<AuthState>({ isAuthenticated: false, user: null });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [state, setState] = useState<ExtensionState>({
-    isEnabled: true, user: null, policies: [], recentEvents: [], analyticsCache: null, lastSync: null,
+    isEnabled: true,
+    user: null,
+    policies: [],
+    recentEvents: [],
+    analyticsCache: null,
+    lastSync: null,
   });
   const [tab, setTab] = useState<'dashboard' | 'events' | 'settings'>('dashboard');
+  const [planState, setPlanState] = useState<PlanState>({
+    plan: 'free',
+    scansToday: 0,
+    scanLimit: FREE_SCAN_LIMIT,
+  });
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
 
   useEffect(() => {
     chrome.runtime.sendMessage({ type: 'CHECK_AUTH' }, (res) => {
@@ -27,9 +45,11 @@ const App: React.FC = () => {
       }
       setLoading(false);
     });
+
     chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (res) => {
       if (res?.settings) setState(prev => ({ ...prev, ...res.settings }));
     });
+
     chrome.storage.local.get(null, (data) => {
       const events = Object.entries(data)
         .filter(([k]) => k.startsWith('event_'))
@@ -37,6 +57,23 @@ const App: React.FC = () => {
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 20);
       setState(prev => ({ ...prev, recentEvents: events }));
+
+      // Load plan state
+      const today = new Date().toISOString().slice(0, 10);
+      const scanKey = `scans_${today}`;
+      const scansToday = (data[scanKey] as number) || 0;
+      const plan = (data['user_plan'] as 'free' | 'pro') || 'free';
+      setPlanState({
+        plan,
+        scansToday,
+        scanLimit: plan === 'pro' ? Infinity : FREE_SCAN_LIMIT,
+      });
+
+      // Show onboarding if first time
+      if (!data['onboarding_seen']) {
+        setShowOnboarding(true);
+        chrome.storage.local.set({ onboarding_seen: true });
+      }
     });
   }, []);
 
@@ -54,107 +91,166 @@ const App: React.FC = () => {
     }} />;
   }
 
+  const scansRemaining = planState.plan === 'pro' ? Infinity : planState.scanLimit - planState.scansToday;
+
   return (
-    <div style={{ width: 360, fontFamily: "'Outfit', sans-serif", background: '#F8FAFC' }}>
-      <div style={{ background: P, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ width: 360, fontFamily: "'Outfit', sans-serif", background: '#F8F9FA' }}>
+      {/* Onboarding Tooltip */}
+      {showOnboarding && (
+        <div style={{
+          background: P, color: '#fff', padding: '12px 16px', fontSize: 12,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <span>Welcome! FYI Guard scans your AI prompts for sensitive data in real-time.</span>
+          <button
+            onClick={() => setShowOnboarding(false)}
+            style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 14, marginLeft: 8 }}
+          >x</button>
+        </div>
+      )}
+
+      {/* Header */}
+      <div style={{ background: '#fff', padding: '12px 16px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <div style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>FYI Guard</div>
-          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>{auth.user?.email}</div>
+          <span style={{ fontSize: 16, fontWeight: 700, color: '#1a1a2e' }}>FYI Guard</span>
+          <span style={{ fontSize: 11, color: '#6b7280', marginLeft: 8 }}>{auth.user?.email}</span>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ background: state.isEnabled ? '#22C55E' : '#EF4444', color: '#fff', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600 }}>
-            {state.isEnabled ? 'ON' : 'OFF'}
-          </span>
-          <button onClick={handleLogout} style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer' }}>Logout</button>
+          <span style={{
+            fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 12,
+            background: state.isEnabled ? '#E8F5EC' : '#FEE2E2',
+            color: state.isEnabled ? P : '#FF4444',
+          }}>{state.isEnabled ? 'ON' : 'OFF'}</span>
+          <button onClick={handleLogout} style={{ background: 'none', border: '1px solid #ddd', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 11, color: '#6b7280' }}>Logout</button>
         </div>
       </div>
 
-      <div style={{ display: 'flex', borderBottom: '1px solid #E5E7EB' }}>
+      {/* Freemium Banner */}
+      {planState.plan === 'free' && (
+        <div style={{ background: '#FFF8E1', padding: '8px 16px', fontSize: 11, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #FFE082' }}>
+          <span>{scansRemaining > 0 ? `${scansRemaining}/${FREE_SCAN_LIMIT} free scans left today` : 'Daily free scans used'}</span>
+          <button
+            onClick={() => chrome.tabs.create({ url: BRAND.website + '/pricing' })}
+            style={{ background: P, color: '#fff', border: 'none', borderRadius: 4, padding: '3px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+          >Upgrade</button>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', background: '#fff', borderBottom: '1px solid #eee' }}>
         {(['dashboard', 'events', 'settings'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
             flex: 1, padding: 10, border: 'none', cursor: 'pointer',
-            background: tab === t ? '#E8F5EC' : '#fff', color: tab === t ? P : '#666',
-            fontWeight: tab === t ? 600 : 400, fontFamily: "'Outfit', sans-serif",
+            background: tab === t ? '#E8F5EC' : '#fff',
+            color: tab === t ? P : '#666',
+            fontWeight: tab === t ? 600 : 400,
+            fontFamily: "'Outfit', sans-serif",
             borderBottom: tab === t ? `2px solid ${P}` : '2px solid transparent',
             fontSize: 13, textTransform: 'capitalize',
           }}>{t}</button>
         ))}
       </div>
 
-      <div style={{ padding: 12, maxHeight: 340, overflow: 'auto' }}>
-        {tab === 'dashboard' && <Dashboard events={state.recentEvents} />}
+      <div style={{ padding: 16 }}>
+        {tab === 'dashboard' && <Dashboard events={state.recentEvents} plan={planState.plan} />}
         {tab === 'events' && <EventsList events={state.recentEvents} />}
         {tab === 'settings' && <SettingsPanel />}
       </div>
 
-      <div style={{ padding: '8px 12px', borderTop: '1px solid #E5E7EB', textAlign: 'center', fontSize: 11, color: '#9CA3AF' }}>
-        Powered by <a href={BRAND.website} target="_blank" style={{ color: P, textDecoration: 'none' }}>{BRAND.name}</a>
+      {/* Footer with Privacy Link */}
+      <div style={{ textAlign: 'center', padding: '8px 16px 12px', fontSize: 11, color: '#999', borderTop: '1px solid #eee', background: '#fff' }}>
+        Powered by <a href={BRAND.website} target="_blank" rel="noopener noreferrer" style={{ color: P, textDecoration: 'none' }}>{BRAND.name}</a>
+        {' | '}
+        <a href={BRAND.privacyUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#999', textDecoration: 'none' }}>Privacy</a>
       </div>
     </div>
   );
 };
 
-const Dashboard: React.FC<{ events: DetectionEvent[] }> = ({ events }) => {
+const Dashboard: React.FC<{ events: DetectionEvent[]; plan: string }> = ({ events, plan }) => {
   const blocked = events.filter(e => e.eventType === 'BLOCK').length;
   const warned = events.filter(e => e.eventType === 'WARN').length;
+
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
-        <StatCard label="Blocked" value={blocked} color="#EF4444" />
-        <StatCard label="Warned" value={warned} color="#F59E0B" />
-        <StatCard label="Total" value={events.length} color={COLORS.primary} />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <StatCard label="Blocked" value={blocked} color="#FF4444" />
+        <StatCard label="Warned" value={warned} color="#FF9800" />
+        <StatCard label="Total" value={events.length} color={P} />
       </div>
-      <h3 style={{ fontSize: 14, margin: '16px 0 12px' }}>Recent Activity</h3>
+
+      <h3 style={{ fontSize: 14, margin: '16px 0 8px' }}>Recent Activity</h3>
       {events.slice(0, 5).map((e, i) => (
-        <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid #F3F4F6', fontSize: 12 }}>
-          <span style={{ background: e.eventType === 'BLOCK' ? '#FEE2E2' : '#FEF3C7', padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, color: e.eventType === 'BLOCK' ? '#DC2626' : '#92400E' }}>{e.eventType}</span>
-          {' '}<strong>{e.detection.category}</strong>
-          <span style={{ float: 'right', color: '#9CA3AF' }}>{new Date(e.timestamp).toLocaleTimeString()}</span>
+        <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0', fontSize: 12 }}>
+          <span style={{
+            display: 'inline-block', padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+            background: e.eventType === 'BLOCK' ? '#FFEBEE' : '#FFF8E1',
+            color: e.eventType === 'BLOCK' ? '#FF4444' : '#FF9800',
+          }}>{e.eventType}</span>{' '}
+          <strong>{e.detection.category}</strong>{' '}
+          <span style={{ color: '#999' }}>{new Date(e.timestamp).toLocaleTimeString()}</span>
         </div>
       ))}
-      {!events.length && <div style={{ textAlign: 'center', color: '#9CA3AF', padding: 20 }}>No events yet</div>}
+      {!events.length && (
+        <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>&#128737;</div>
+          <p style={{ margin: 0, fontSize: 13 }}>No events yet</p>
+          <p style={{ margin: '4px 0 0', fontSize: 11, color: '#bbb' }}>Start using AI tools to see detection activity</p>
+        </div>
+      )}
     </div>
   );
 };
 
 const StatCard: React.FC<{ label: string; value: number; color: string }> = ({ label, value, color }) => (
-  <div style={{ background: '#fff', borderRadius: 8, padding: '12px 8px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-    <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
-    <div style={{ fontSize: 11, color: '#6B7280' }}>{label}</div>
+  <div style={{ flex: 1, background: '#fff', borderRadius: 8, padding: 12, textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+    <div style={{ fontSize: 20, fontWeight: 700, color }}>{value}</div>
+    <div style={{ fontSize: 11, color: '#999' }}>{label}</div>
   </div>
 );
 
 const EventsList: React.FC<{ events: DetectionEvent[] }> = ({ events }) => (
   <div>
     {events.map((e, i) => (
-      <div key={i} style={{ padding: 10, borderBottom: '1px solid #F3F4F6', fontSize: 12 }}>
-        <div><strong>{e.eventType}</strong>: {e.detection.category} <span style={{ float: 'right', color: '#9CA3AF' }}>{new Date(e.timestamp).toLocaleString()}</span></div>
-        <div style={{ color: '#6B7280', fontSize: 11, marginTop: 4 }}>Platform: {e.context.platform} | Confidence: {Math.round(e.detection.confidence * 100)}%</div>
+      <div key={i} style={{ padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>
+        <div style={{ fontSize: 12 }}>
+          <strong>{e.eventType}</strong>: {e.detection.category}{' '}
+          <span style={{ color: '#999', fontSize: 11 }}>{new Date(e.timestamp).toLocaleString()}</span>
+        </div>
+        <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
+          Platform: {e.context.platform} | Confidence: {Math.round(e.detection.confidence * 100)}%
+        </div>
       </div>
     ))}
-    {!events.length && <div style={{ textAlign: 'center', color: '#9CA3AF', padding: 20 }}>No events recorded</div>}
+    {!events.length && <div style={{ textAlign: 'center', padding: 32, color: '#999', fontSize: 13 }}>No events recorded</div>}
   </div>
 );
 
 const SettingsPanel: React.FC = () => {
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
+
   useEffect(() => {
     chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (res) => {
       if (res?.settings) setSettings(res.settings);
     });
   }, []);
-  const save = () => { chrome.storage.local.set({ settings }); };
+
+  const save = () => {
+    chrome.storage.local.set({ settings });
+  };
+
   return (
-    <div style={{ fontSize: 13 }}>
-      <h3 style={{ fontSize: 14, margin: '0 0 12px' }}>Categories</h3>
+    <div>
+      <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>Categories</h3>
       {Object.entries(settings.categories).map(([key, val]) => (
-        <label key={key} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, cursor: 'pointer' }}>
+        <label key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #f0f0f0', fontSize: 12 }}>
           <span>{key}</span>
           <input type="checkbox" checked={val as boolean}
             onChange={e => setSettings({ ...settings, categories: { ...settings.categories, [key]: e.target.checked } })} />
         </label>
       ))}
-            <h3 style={{ fontSize: 14, margin: '16px 0 8px' }}>Sensitivity</h3>
+
+      <h3 style={{ fontSize: 14, margin: '16px 0 8px' }}>Sensitivity</h3>
       <select
         value={settings.sensitivity}
         onChange={e => setSettings({ ...settings, sensitivity: e.target.value as 'LOW' | 'MEDIUM' | 'HIGH' })}
@@ -164,15 +260,17 @@ const SettingsPanel: React.FC = () => {
         <option value="MEDIUM">Medium</option>
         <option value="HIGH">High</option>
       </select>
+
       <h3 style={{ fontSize: 14, margin: '16px 0 8px' }}>General</h3>
-      <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+      <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
         <span>Auto-block critical</span>
         <input type="checkbox" checked={settings.autoBlock}
           onChange={e => setSettings({ ...settings, autoBlock: e.target.checked })} />
       </label>
+
       <button onClick={save} style={{
-        width: '100%', padding: 10, background: COLORS.primary, color: '#fff',
-        border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, marginTop: 12,
+        width: '100%', padding: 10, marginTop: 16, background: P, color: '#fff',
+        border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13,
       }}>Save Settings</button>
     </div>
   );

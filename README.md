@@ -1,6 +1,17 @@
 # FYI Guard | AI Prompt Guardian
 
-Prevent sensitive data leaks to ChatGPT, Claude, and other AI platforms. FYI Guard is a Chrome extension that scans your prompts in real-time and blocks sensitive information before it reaches AI services.
+Prevent sensitive data leaks to ChatGPT, Claude, and other AI platforms. FYI 
+
+[![CI/CD](https://github.com/8h45k4r/fyiguard/actions/workflows/ci.yml/badge.svg)](https://github.com/8h45k4r/fyiguard/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/8h45k4r/fyiguard/blob/main/LICENSE)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/8h45k4r/fyiguard/releases)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Coming%20Soon-orange.svg)](https://chrome.google.com/webstore)
+[![Privacy Policy](https://img.shields.io/badge/Privacy-Policy-blue.svg)](https://learn.certifyi.ai/fyi-guard/privacy-policy/)
+
+> **Install FYI Guard**
+> Once published: [Add to Chrome (Chrome Web Store)](https://chrome.google.com/webstore) | [Load Unpacked (Dev)](https://github.com/8h45k4r/fyiguard#quick-start)
+>
+> **One-click install coming soon** after Chrome Web Store review.Guard is a Chrome extension that scans your prompts in real-time and blocks sensitive information before it reaches AI services.
 
 ## Features
 

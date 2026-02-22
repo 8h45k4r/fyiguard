@@ -6,10 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  NODE_VERSION: '20'
+
 jobs:
-  # Extension Build & Lint
+  # ── Extension: Lint + Test + Build + Zip ──────────────────────────────────
   extension:
-    name: Build Extension
+    name: Extension (Lint, Test, Build, Zip)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,65 +20,138 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install root dependencies
         run: npm ci
+
+      - name: TypeScript type-check (extension)
+        run: cd extension && npx tsc --noEmit
+
+      - name: Lint (extension)
+        run: npx eslint extension/src --ext .ts,.tsx --max-warnings 0
+        continue-on-error: true
+
+      - name: Run unit tests (Vitest)
+        run: npm test
+        env:
+          NODE_ENV: test
 
       - name: Build extension
         run: npm run build
 
+      - name: Zip extension for CWS
+        run: |
+          cd extension/dist
+          zip -r ../../fyiguard-v${{ github.run_number }}.zip .
+          echo "Extension zip created: fyiguard-v${{ github.run_number }}.zip"
+
       - name: Upload extension artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fyiguard-extension
-          path: extension/dist/
+          name: fyiguard-extension-v${{ github.run_number }}
+          path: |
+            fyiguard-v${{ github.run_number }}.zip
+            extension/dist/
           retention-days: 30
 
-  # Backend Build & Test
+  # ── Backend: Type-check + Lint + Test + Docker Build ─────────────────────
   backend:
-    name: Build & Test Backend
+    name: Backend (Type-check, Lint, Test, Docker)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./backend
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: fyiguard_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
 
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: npm ci
 
-      - name: Type check
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: TypeScript type-check
         run: npx tsc --noEmit
 
-      - name: Run tests
+      - name: Lint
+        run: npx eslint src --ext .ts --max-warnings 0
+        continue-on-error: true
+
+      - name: Run database migrations
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/fyiguard_test
+
+      - name: Run backend tests
         run: npm test
         env:
           NODE_ENV: test
           DATABASE_URL: postgresql://test:test@localhost:5432/fyiguard_test
-          JWT_SECRET: test-secret-key
+          JWT_SECRET: test-secret-key-32chars-minimum!!
+          STRIPE_SECRET_KEY: sk_test_placeholder
+          STRIPE_WEBHOOK_SECRET: whsec_placeholder
 
-  # Docker Build
-  docker:
-    name: Docker Build
+  # ── E2E Tests ─────────────────────────────────────────────────────────────
+  e2e:
+    name: E2E Tests (Playwright)
     runs-on: ubuntu-latest
-    needs: [backend]
+    needs: [extension]
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Docker image
-        run: docker build -t fyiguard-api ./backend
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
 
-  # Security Scan
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          API_URL: ${{ secrets.API_URL || 'http://localhost:3001' }}
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  # ── Security Audit ────────────────────────────────────────────────────────
   security:
     name: Security Audit
     runs-on: ubuntu-latest
@@ -85,7 +161,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Audit root dependencies
         run: npm audit --audit-level=high
@@ -95,3 +171,18 @@ jobs:
         working-directory: ./backend
         run: npm audit --audit-level=high
         continue-on-error: true
+
+  # ── Docker Build (main only) ──────────────────────────────────────────────
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [backend]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t fyiguard-api:${{ github.sha }} ./backend
+
+      - name: Tag as latest
+        run: docker tag fyiguard-api:${{ github.sha }} fyiguard-api:latest

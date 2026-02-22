@@ -61,15 +61,13 @@ const Options: React.FC = () => {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
-        <button onClick={save} style={{
-          padding: '10px 24px', background: COLORS.primary, color: '#fff', border: 'none',
-          borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14,
-        }}>Save Settings</button>
+        <button onClick={save} style={btnStyle}>Save Settings</button>
         {saved && <span style={{ color: '#22C55E', fontWeight: 600 }}>Saved!</span>}
       </div>
 
-      <p style={{ marginTop: 24, color: '#9ca3af', fontSize: 12 }}>
-        FYI Guard v1.0.0 | <a href={BRAND.website} target="_blank" rel="noreferrer">{BRAND.name}</a>
+      <p style={{ marginTop: 24, color: '#9ca3af', fontSize: 12, textAlign: 'center' }}>
+        FYI Guard v1.0.0 | <a href={BRAND.website} target="_blank" style={{ color: COLORS.primary }}>{BRAND.name}</a>
+        {' | '}<a href={BRAND.privacyUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#9ca3af', textDecoration: 'none' }}>Privacy</a>
       </p>
     </div>
   );
@@ -153,27 +151,15 @@ const OrgTab: React.FC<{ userRole: string }> = ({ userRole }) => {
 
   const createOrg = async () => {
     if (!newOrg.name || !newOrg.slug) return;
-    const res = await authFetch(`${baseUrl}/organizations`, {
-      method: 'POST', body: JSON.stringify(newOrg),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setOrg(data.org);
-      setMsg('Organization created!');
-    } else {
-      const err = await res.json();
-      setMsg(err.message || 'Failed');
-    }
+    const res = await authFetch(`${baseUrl}/organizations`, { method: 'POST', body: JSON.stringify(newOrg) });
+    if (res.ok) { const data = await res.json(); setOrg(data.org); setMsg('Organization created!'); }
+    else { const err = await res.json(); setMsg(err.message || 'Failed'); }
   };
 
   const invite = async () => {
     if (!inviteEmail || !org) return;
-    const res = await authFetch(`${baseUrl}/organizations/${org.id}/invite`, {
-      method: 'POST', body: JSON.stringify({ email: inviteEmail, role: 'member' }),
-    });
-    const data = await res.json();
-    setMsg(data.message || 'Done');
-    setInviteEmail('');
+    const res = await authFetch(`${baseUrl}/organizations/${org.id}/invite`, { method: 'POST', body: JSON.stringify({ email: inviteEmail, role: 'member' }) });
+    const data = await res.json(); setMsg(data.message || 'Done'); setInviteEmail('');
   };
 
   if (!org) {
@@ -185,7 +171,7 @@ const OrgTab: React.FC<{ userRole: string }> = ({ userRole }) => {
         <input style={inputStyle} placeholder="slug (lowercase, no spaces)" value={newOrg.slug}
           onChange={e => setNewOrg({ ...newOrg, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })} />
         <button onClick={createOrg} style={btnStyle}>Create Organization</button>
-        {msg && <p style={{ color: '#22C55E', marginTop: 8 }}>{msg}</p>}
+        {msg && <p style={{ color: '#666', marginTop: 8 }}>{msg}</p>}
       </div>
     );
   }
@@ -193,25 +179,21 @@ const OrgTab: React.FC<{ userRole: string }> = ({ userRole }) => {
   return (
     <div>
       <h3 style={sTitle}>{org.name}</h3>
-      <p style={{ color: '#6b7280', fontSize: 13 }}>Slug: {org.slug} | Members: {org.members?.length || 0}</p>
+      <p style={{ fontSize: 13, color: '#666' }}>Slug: {org.slug} | Members: {org.members?.length || 0}</p>
       {isAdmin && (
-        <div style={{ marginTop: 16 }}>
-          <h4 style={{ fontSize: 14, fontWeight: 600 }}>Invite Member</h4>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input style={{ ...inputStyle, flex: 1 }} placeholder="user@company.com" value={inviteEmail}
-              onChange={e => setInviteEmail(e.target.value)} />
-            <button onClick={invite} style={btnStyle}>Invite</button>
-          </div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <input style={{ ...inputStyle, flex: 1 }} placeholder="user@company.com" value={inviteEmail}
+            onChange={e => setInviteEmail(e.target.value)} />
+          <button onClick={invite} style={btnStyle}>Invite</button>
         </div>
       )}
-      <h4 style={{ fontSize: 14, fontWeight: 600, marginTop: 16 }}>Members</h4>
+      <h4 style={{ fontSize: 14, fontWeight: 600 }}>Members</h4>
       {org.members?.map((m, i) => (
         <div key={i} style={toggleRow}>
-          <span>{m.user.email}</span>
-          <span style={{ color: '#6b7280', fontSize: 12 }}>{m.user.role}</span>
+          <span>{m.user.email}</span><span style={{ fontSize: 11, color: '#999' }}>{m.user.role}</span>
         </div>
       ))}
-      {msg && <p style={{ color: '#22C55E', marginTop: 8 }}>{msg}</p>}
+      {msg && <p style={{ color: '#666', marginTop: 8 }}>{msg}</p>}
     </div>
   );
 };
