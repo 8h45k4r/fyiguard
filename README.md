@@ -137,6 +137,17 @@ Use the popup UI to:
 - **Font**: Outfit (Google Fonts)
 - **Logo**: [CertifYI Logo](https://certifyi.ai/wp-content/uploads/2025/01/logoblue.svg)
 
+## Documentation
+
+Detailed documentation is available in the `docs/` directory:
+
+- [Architecture Overview](docs/ARCHITECTURE.md) — system design, data flow, component diagram
+- [API Reference](docs/API.md) — backend REST endpoints, request/response schemas
+- [Extension Guide](docs/EXTENSION.md) — Chrome extension internals, platform adapters, detection engine
+- [Deployment Guide](docs/DEPLOYMENT.md) — Docker, CI/CD, environment setup, Chrome Web Store publishing
+- [Contributing Guide](docs/CONTRIBUTING.md) — dev setup, coding standards, commit conventions, PR process
+
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
