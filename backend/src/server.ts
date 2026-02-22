@@ -1,28 +1,21 @@
 /**
  * FYI Guard - Backend API Server
- * ==============================
  *
  * Entry point for the FYI Guard backend API.
  * Configures Express with security middleware, route handlers,
  * and database connectivity via Prisma + Supabase.
- *
- * Architecture:
- *   Client -> Express -> [helmet, cors, rateLimiter] -> [authenticate] -> Routes
- *                                                                          |
- *                                                         [guardMiddleware] -> GuardService
- *
- * @module server
  */
-
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-// @ts-expect-error - PrismaClient types available after `npx prisma generate`
-import { PrismaClient } from '@prisma/client';
+
+// Database
+import { prisma } from './lib/prisma';
 
 // Middleware
 import { errorHandler } from './middleware/errorHandler';
 import { rateLimiter } from './middleware/rateLimiter';
+import { requestLogger } from './middleware/logger';
 import { authenticate } from './middleware/auth';
 
 // Routes
@@ -35,56 +28,37 @@ import { analyticsRouter } from './routes/analytics';
 import { scanRouter } from './routes/scan';
 import { guardRouter } from './routes/guard';
 
-// ---------------------------------------------------------------------------
-// Database Client
-// ---------------------------------------------------------------------------
-
-/**
- * Shared Prisma client instance.
- * Exported so that middleware and services can reuse the same connection pool.
- * In production, Prisma manages connection pooling automatically.
- */
-export const prisma = new PrismaClient();
-
-// ---------------------------------------------------------------------------
-// Express App Configuration
-// ---------------------------------------------------------------------------
+// Re-export prisma for use in other modules
+export { prisma };
 
 const app = express();
 const PORT = parseInt(process.env['PORT'] ?? '3001', 10);
 const API_PREFIX = '/api/v1';
 
 // ---------------------------------------------------------------------------
-// Global Middleware (applied to ALL routes)
+// Global Middleware
 // ---------------------------------------------------------------------------
-
-// Security headers
 app.use(helmet());
-
-// CORS configuration
 app.use(cors({
   origin: process.env['CORS_ORIGIN'] || '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Token'],
   credentials: true,
 }));
-
-// Body parsing
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
-
-// Rate limiting (applied globally)
+app.use(requestLogger);
 app.use(rateLimiter);
 
 // ---------------------------------------------------------------------------
-// Route Registration
+// Routes
 // ---------------------------------------------------------------------------
 
-// Public routes (no authentication required)
+// Public
 app.use(`${API_PREFIX}/health`, healthRouter);
 app.use(`${API_PREFIX}/auth`, authRouter);
 
-// Protected routes (authentication required)
+// Protected
 app.use(`${API_PREFIX}/events`, authenticate, eventsRouter);
 app.use(`${API_PREFIX}/settings`, authenticate, settingsRouter);
 app.use(`${API_PREFIX}/policies`, authenticate, policiesRouter);
@@ -92,16 +66,12 @@ app.use(`${API_PREFIX}/analytics`, authenticate, analyticsRouter);
 app.use(`${API_PREFIX}/scan`, authenticate, scanRouter);
 app.use(`${API_PREFIX}/guard`, authenticate, guardRouter);
 
-// ---------------------------------------------------------------------------
-// Error Handling (must be registered LAST)
-// ---------------------------------------------------------------------------
-
+// Error handler (must be last)
 app.use(errorHandler);
 
 // ---------------------------------------------------------------------------
 // Server Startup
 // ---------------------------------------------------------------------------
-
 async function main() {
   await prisma.$connect();
   console.log('[FYI Guard] Database connected');
