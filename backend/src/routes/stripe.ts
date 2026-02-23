@@ -19,7 +19,7 @@ const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
  */
 router.post('/create-checkout', async (req: Request, res: Response) => {
   try {
-    const userId = (req as Record<string, unknown>).userId as string;
+    const userId = (req as unknown as Record<string, unknown>).userId as string;
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -54,8 +54,8 @@ router.post('/create-checkout', async (req: Request, res: Response) => {
  */
 router.post('/webhook', async (req: Request, res: Response) => {
   const sig = req.headers['stripe-signature'] as string;
-
   let event: Stripe.Event;
+
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, WEBHOOK_SECRET);
   } catch (err) {
@@ -106,7 +106,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
  */
 router.get('/portal', async (req: Request, res: Response) => {
   try {
-    const userId = (req as Record<string, unknown>).userId as string;
+    const userId = (req as unknown as Record<string, unknown>).userId as string;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
