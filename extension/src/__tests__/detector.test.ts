@@ -20,7 +20,6 @@ const chromeMock = {
   },
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 (globalThis as any).chrome = chromeMock;
 
 // ─── Pattern Helpers ────────────────────────────────────────────────────────
