@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { processAlert } from '../services/alertService';
+import { processAlert, determineSeverity } from '../services/alertService';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -11,21 +11,26 @@ const prisma = new PrismaClient();
  */
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { orgId, userId, category, riskLevel, eventType, platform, details, eventId } = req.body;
+    const { orgId, userId, userEmail, category, riskLevel, eventType, platform, details, matchedContent, url } = req.body;
 
-    if (!orgId || !userId || !category || !riskLevel) {
-      return res.status(400).json({ error: 'Missing required fields: orgId, userId, category, riskLevel' });
+    if (!orgId || !userId || !category) {
+      return res.status(400).json({ error: 'Missing required fields: orgId, userId, category' });
     }
+
+    const severity = determineSeverity(category, riskLevel || 'MEDIUM', false);
 
     const alertId = await processAlert({
       orgId,
       userId,
+      userEmail: userEmail || 'unknown',
+      alertType: eventType === 'BLOCK' ? 'CRITICAL_DATA_LEAK' : 'HIGH_RISK_PROMPT',
+      severity,
       category,
-      riskLevel,
-      eventType: eventType || 'BLOCK',
+      description: details || `Detected ${category} on ${platform || 'unknown'}`,
+      matchedContent: matchedContent || '',
       platform: platform || 'unknown',
-      details: details || '',
-      eventId,
+      url,
+      action: eventType || 'BLOCK',
     });
 
     res.status(201).json({ success: true, alertId });
@@ -83,15 +88,15 @@ router.get('/:orgId', async (req: Request, res: Response) => {
 router.patch('/:alertId/resolve', async (req: Request, res: Response) => {
   try {
     const { alertId } = req.params;
-    const { resolvedBy, notes } = req.body;
+    const { resolvedBy } = req.body;
 
     const alert = await prisma.adminAlert.update({
       where: { id: alertId },
       data: {
         resolved: true,
-        resolvedAt: new Date(),
-        resolvedBy: resolvedBy || 'admin',
-        notes: notes || '',
+        acknowledged: true,
+        acknowledgedBy: resolvedBy || 'admin',
+        acknowledgedAt: new Date(),
       },
     });
 
