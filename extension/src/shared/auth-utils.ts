@@ -93,7 +93,7 @@ export async function registerUser(
   } catch (err: unknown) {
     // If network error (backend unreachable), create local account
     if (err instanceof TypeError && err.message.includes('fetch')) {
-      return createLocalAccount(email, name);
+      return createLocalAccount(email);
     }
     // If it's a server error message, re-throw
     throw err;
@@ -101,7 +101,7 @@ export async function registerUser(
 }
 
 /** Create a local offline account */
-async function createLocalAccount(email: string, name?: string): Promise<AuthResponse> {
+async function createLocalAccount(email: string): Promise<AuthResponse> {
   const userId = generateLocalId();
   const token = generateLocalToken();
   await chrome.storage.local.set({ [AUTH_KEYS.OFFLINE_MODE]: true });
