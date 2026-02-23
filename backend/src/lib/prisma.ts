@@ -9,7 +9,6 @@
  *   const users = await prisma.user.findMany();
  */
 
-// @ts-expect-error - Types available after `npx prisma generate`
 import { PrismaClient } from '@prisma/client';
 
 const globalForPrisma = globalThis as unknown as {
