@@ -144,4 +144,4 @@ export function requireAdmin(
 
 // Legacy alias — some older route files reference `requireAuth`
 // TODO: migrate all route files to use `authenticate`, then remove this alias
-export const requireAuth = authenticate;1
+export const requireAuth = authenticate;
