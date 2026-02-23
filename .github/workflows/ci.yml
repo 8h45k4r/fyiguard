@@ -29,7 +29,7 @@ jobs:
         run: cd extension && npx tsc --noEmit
 
       - name: Lint (extension)
-        run: npx eslint extension/src --ext .ts,.tsx --max-warnings 0
+        run: npx eslint extension/src/ --max-warnings 0
         continue-on-error: true
 
       - name: Run unit tests (Vitest)
@@ -96,7 +96,7 @@ jobs:
 
       - name: Lint
         working-directory: ./backend
-        run: npx eslint src --ext .ts --max-warnings 0
+        run: npx eslint src/ --max-warnings 0
         continue-on-error: true
 
       - name: Run backend tests
