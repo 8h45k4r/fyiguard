@@ -13,6 +13,7 @@ export interface BehaviorEvent {
   eventType: 'session_start' | 'session_end' | 'prompt_submitted' | 'file_uploaded' | 'detection_triggered';
   metadata?: Record<string, any>;
   timestamp?: Date;
+  userEmail?: string;
 }
 
 export interface SessionData {
@@ -24,6 +25,7 @@ export interface SessionData {
   promptCount: number;
   detectionCount: number;
   blockedCount: number;
+  userEmail?: string;
 }
 
 export interface UsageSummary {
@@ -79,6 +81,7 @@ export async function startSession(event: BehaviorEvent): Promise<string> {
     promptCount: 0,
     detectionCount: 0,
     blockedCount: 0,
+    userEmail: event.userEmail,
   };
 
   activeSessions.set(key, session);
@@ -87,11 +90,11 @@ export async function startSession(event: BehaviorEvent): Promise<string> {
   await prisma.behaviorSession.create({
     data: {
       userId: event.userId,
+      userEmail: event.userEmail || event.userId,
       orgId: event.orgId,
       platform: event.platform,
       startTime: session.startTime,
       promptCount: 0,
-      detectionCount: 0,
       blockedCount: 0,
     },
   });
@@ -112,9 +115,9 @@ export async function endSession(userId: string, platform: string): Promise<Sess
   session.endTime = new Date();
   activeSessions.delete(key);
 
-  const durationMinutes = Math.round(
-    (session.endTime.getTime() - session.startTime.getTime()) / 60000
-  );
+  const durationMs = session.endTime.getTime() - session.startTime.getTime();
+  const durationSeconds = Math.round(durationMs / 1000);
+  const durationMinutes = Math.round(durationMs / 60000);
 
   // Update DB record
   await prisma.behaviorSession.updateMany({
@@ -125,9 +128,8 @@ export async function endSession(userId: string, platform: string): Promise<Sess
     },
     data: {
       endTime: session.endTime,
-      durationMinutes,
+      durationSeconds,
       promptCount: session.promptCount,
-      detectionCount: session.detectionCount,
       blockedCount: session.blockedCount,
     },
   });
@@ -206,6 +208,7 @@ async function updateDailyUsageSummary(
     await prisma.dailyUsageSummary.create({
       data: {
         userId,
+        userEmail: session.userEmail || userId,
         orgId,
         platform,
         date: today,
@@ -251,15 +254,13 @@ export async function getUserUsageSummary(
     totalPrompts += s.promptCount;
     totalDetections += s.detectionCount;
     totalBlocked += s.blockedCount;
-    platformBreakdown[s.platform] = (platformBreakdown[s.platform] || 0) + s.totalMinutes;
+    const plat = s.platform || 'all';
+    platformBreakdown[plat] = (platformBreakdown[plat] || 0) + s.totalMinutes;
   }
 
   // Calculate productivity score (0-100)
   const productivityScore = calculateProductivityScore(
-    totalPrompts,
-    totalDetections,
-    totalBlocked,
-    totalMinutes
+    totalPrompts, totalDetections, totalBlocked, totalMinutes
   );
 
   // Calculate risk score (0-100)
@@ -317,12 +318,13 @@ export async function getOrgUsageDashboard(
     totalDetections += s.detectionCount;
     totalBlocked += s.blockedCount;
 
-    if (!platformData[s.platform]) {
-      platformData[s.platform] = { users: new Set(), timeMinutes: 0, prompts: 0 };
+    const plat = s.platform || 'all';
+    if (!platformData[plat]) {
+      platformData[plat] = { users: new Set<string>(), timeMinutes: 0, prompts: 0 };
     }
-    platformData[s.platform].users.add(s.userId);
-    platformData[s.platform].timeMinutes += s.totalMinutes;
-    platformData[s.platform].prompts += s.promptCount;
+    platformData[plat].users.add(s.userId);
+    platformData[plat].timeMinutes += s.totalMinutes;
+    platformData[plat].prompts += s.promptCount;
 
     if (!userTotals[s.userId]) {
       userTotals[s.userId] = { timeMinutes: 0, prompts: 0 };
@@ -331,11 +333,10 @@ export async function getOrgUsageDashboard(
     userTotals[s.userId].prompts += s.promptCount;
   }
 
-  // Get risk level counts from events
-  const events = await prisma.event.findMany({
+  // Get risk level counts from detection events
+  const events = await prisma.detectionEvent.findMany({
     where: {
-      orgId,
-      timestamp: { gte: since },
+      createdAt: { gte: since },
     },
     select: { riskLevel: true },
   });
@@ -411,17 +412,12 @@ function calculateProductivityScore(
 ): number {
   if (minutes === 0) return 0;
 
-  const promptRate = prompts / minutes; // prompts per minute
-  const blockPenalty = blocked / Math.max(prompts, 1); // ratio of blocked
+  const promptRate = prompts / minutes;
+  const blockPenalty = blocked / Math.max(prompts, 1);
   const detectionPenalty = detections / Math.max(prompts, 1);
 
-  // Base score from prompt rate (0-60)
   let score = Math.min(promptRate * 30, 60);
-
-  // Bonus for low detection rate (0-25)
   score += Math.max(0, 25 * (1 - detectionPenalty));
-
-  // Bonus for low block rate (0-15)
   score += Math.max(0, 15 * (1 - blockPenalty));
 
   return Math.round(Math.min(Math.max(score, 0), 100));
@@ -441,9 +437,7 @@ function calculateRiskScore(
   const detectionRate = detections / prompts;
   const blockRate = blocked / prompts;
 
-  // Weight: blocks are worse than detections
   const score = (detectionRate * 40) + (blockRate * 60);
-
   return Math.round(Math.min(score * 100, 100));
 }
 
@@ -453,14 +447,7 @@ function calculateRiskScore(
 export async function getTrendingData(
   orgId: string,
   days: number = 30
-): Promise<Array<{
-  date: string;
-  totalMinutes: number;
-  prompts: number;
-  detections: number;
-  blocked: number;
-  uniqueUsers: number;
-}>> {
+): Promise<Array<{ date: string; totalMinutes: number; prompts: number; detections: number; blocked: number; uniqueUsers: number }>> {
   const since = new Date();
   since.setDate(since.getDate() - days);
 
@@ -472,13 +459,7 @@ export async function getTrendingData(
     orderBy: { date: 'asc' },
   });
 
-  const dailyMap: Record<string, {
-    totalMinutes: number;
-    prompts: number;
-    detections: number;
-    blocked: number;
-    users: Set<string>;
-  }> = {};
+  const dailyMap: Record<string, { totalMinutes: number; prompts: number; detections: number; blocked: number; users: Set<string> }> = {};
 
   for (const s of summaries) {
     const dateKey = s.date.toISOString().split('T')[0];
@@ -488,7 +469,7 @@ export async function getTrendingData(
         prompts: 0,
         detections: 0,
         blocked: 0,
-        users: new Set(),
+        users: new Set<string>(),
       };
     }
     dailyMap[dateKey].totalMinutes += s.totalMinutes;
@@ -515,7 +496,7 @@ export async function getUserLeaderboard(
   orgId: string,
   days: number = 30,
   sortBy: 'time' | 'productivity' | 'risk' = 'time'
-): Promise<Array<UsageSummary>> {
+): Promise<UsageSummary[]> {
   const since = new Date();
   since.setDate(since.getDate() - days);
 
@@ -526,13 +507,7 @@ export async function getUserLeaderboard(
     },
   });
 
-  const userMap: Record<string, {
-    totalMinutes: number;
-    prompts: number;
-    detections: number;
-    blocked: number;
-    platforms: Record<string, number>;
-  }> = {};
+  const userMap: Record<string, { totalMinutes: number; prompts: number; detections: number; blocked: number; platforms: Record<string, number> }> = {};
 
   for (const s of summaries) {
     if (!userMap[s.userId]) {
@@ -542,8 +517,8 @@ export async function getUserLeaderboard(
     userMap[s.userId].prompts += s.promptCount;
     userMap[s.userId].detections += s.detectionCount;
     userMap[s.userId].blocked += s.blockedCount;
-    userMap[s.userId].platforms[s.platform] =
-      (userMap[s.userId].platforms[s.platform] || 0) + s.totalMinutes;
+    const plat = s.platform || 'all';
+    userMap[s.userId].platforms[plat] = (userMap[s.userId].platforms[plat] || 0) + s.totalMinutes;
   }
 
   const leaderboard: UsageSummary[] = Object.entries(userMap).map(([userId, data]) => {
