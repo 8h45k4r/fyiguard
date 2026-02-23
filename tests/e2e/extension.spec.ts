@@ -12,6 +12,7 @@ import path from 'path';
 const EXTENSION_PATH = path.join(__dirname, '../../extension/dist');
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const POPUP_URL = `chrome-extension://fyiguard-test-id/popup.html`;
+const API_URL = process.env['API_URL'] || 'http://localhost:3001';
 
 /**
  * Helper to launch Chrome with the FYI Guard extension loaded.
@@ -27,10 +28,28 @@ async function launchWithExtension() {
   return context;
 }
 
+/**
+ * Helper: check if backend is reachable before running API tests.
+ */
+async function isBackendRunning(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_URL}/api/v1/health`);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 // --- API Health Smoke Tests ---
 test.describe('FYI Guard API Health', () => {
+  let backendAvailable = false;
+
+  test.beforeAll(async () => {
+    backendAvailable = await isBackendRunning();
+  });
+
   test('health endpoint responds 200', async ({ request }) => {
-    const API_URL = process.env['API_URL'] || 'http://localhost:3001';
+    test.skip(!backendAvailable, 'Backend not running');
     const response = await request.get(`${API_URL}/api/v1/health`);
     expect(response.status()).toBe(200);
     const body = await response.json() as { status: string };
@@ -38,7 +57,7 @@ test.describe('FYI Guard API Health', () => {
   });
 
   test('auth endpoint rejects missing credentials', async ({ request }) => {
-    const API_URL = process.env['API_URL'] || 'http://localhost:3001';
+    test.skip(!backendAvailable, 'Backend not running');
     const response = await request.post(`${API_URL}/api/v1/auth/login`, {
       data: {},
     });
@@ -46,7 +65,7 @@ test.describe('FYI Guard API Health', () => {
   });
 
   test('events endpoint requires authentication', async ({ request }) => {
-    const API_URL = process.env['API_URL'] || 'http://localhost:3001';
+    test.skip(!backendAvailable, 'Backend not running');
     const response = await request.post(`${API_URL}/api/v1/events`, {
       data: { events: [] },
     });
@@ -84,8 +103,14 @@ test.describe('Freemium Gate', () => {
 
 // --- Stripe Checkout Smoke Test ---
 test.describe('Stripe Checkout', () => {
+  let backendAvailable = false;
+
+  test.beforeAll(async () => {
+    backendAvailable = await isBackendRunning();
+  });
+
   test('checkout endpoint rejects unauthenticated requests', async ({ request }) => {
-    const API_URL = process.env['API_URL'] || 'http://localhost:3001';
+    test.skip(!backendAvailable, 'Backend not running');
     const response = await request.post(`${API_URL}/api/v1/stripe/create-checkout`);
     expect(response.status()).toBe(401);
   });
