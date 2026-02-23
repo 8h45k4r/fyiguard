@@ -100,7 +100,6 @@ class BackgroundService {
   }
 
   // --- Auth Handlers ---
-
   private async handleLogin(
     data: { email: string; password: string },
     sendResponse: (r: unknown) => void
@@ -152,7 +151,6 @@ class BackgroundService {
   }
 
   // --- Detection Events ---
-
   private async handleDetectionEvent(event: DetectionEvent): Promise<void> {
     this.eventQueue.push(event);
     chrome.action.setBadgeText({ text: String(this.eventQueue.length) });
@@ -169,7 +167,6 @@ class BackgroundService {
   }
 
   // --- Backend Communication ---
-
   private async flushEvents(): Promise<void> {
     if (!this.eventQueue.length) return;
     const eventsToSend = [...this.eventQueue];
@@ -189,7 +186,6 @@ class BackgroundService {
   }
 
   // --- Behavior Tracking ---
-
   private async handleBehaviorEvent(event: BehaviorTrackingEvent): Promise<void> {
     this.behaviorQueue.push(event);
     if (this.behaviorQueue.length >= 10) await this.flushBehaviorEvents();
@@ -210,11 +206,13 @@ class BackgroundService {
   }
 
   private async handleSessionEnd(data: { userId: string; platform: string }): Promise<void> {
+    const sessionDuration = this.sessionStartTime ? Date.now() - this.sessionStartTime : null;
+    const platform = this.activePlatform ?? data.platform;
     try {
       const baseUrl = API_ENDPOINTS.events.replace('/events', '');
       await authFetch(`${baseUrl}/behavior/session/end`, {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, platform, sessionDuration }),
       });
       this.activePlatform = null;
       this.sessionStartTime = null;
@@ -241,7 +239,6 @@ class BackgroundService {
   }
 
   // --- Admin Alerts ---
-
   private async sendAdminAlert(data: {
     orgId: string; userId: string; category: string;
     riskLevel: string; platform: string; details: string;
