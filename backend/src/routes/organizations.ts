@@ -106,7 +106,7 @@ orgRouter.post('/:id/invite', async (req: AuthRequest, res: Response, next: Next
     if (!requester || requester.role !== 'admin') throw new AppError('Only admins can invite', 403);
 
     // Find or check user
-    let user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email } });
     if (!user) throw new AppError('User not found. They must register first.', 404);
 
     // Check already member
