@@ -29,12 +29,13 @@ scanRouter.post('/', async (req: AuthRequest, res: Response, next: NextFunction)
       settings = await prisma.userSettings.create({ data: { userId } });
     }
 
-    // Fetch active policies for the user
+    // Fetch active policies for the user (include rules relation)
     const policies = await prisma.policy.findMany({
       where: {
         isActive: true,
         OR: [{ userId }, { isGlobal: true }],
       },
+      include: { rules: true },
     });
 
     // Run detection
@@ -47,24 +48,48 @@ scanRouter.post('/', async (req: AuthRequest, res: Response, next: NextFunction)
 
     // Determine action based on settings and result
     let action: 'BLOCKED' | 'WARNED' | 'ALLOWED' = 'ALLOWED';
+    let eventType: 'BLOCK' | 'WARN' | 'ALLOW' = 'ALLOW';
     if (detectionResult.riskScore >= 80 && settings.blockingEnabled) {
       action = 'BLOCKED';
+      eventType = 'BLOCK';
     } else if (detectionResult.riskScore >= 40 && settings.alertsEnabled) {
       action = 'WARNED';
+      eventType = 'WARN';
     }
 
-    // Persist event asynchronously — don't block the response
+    // Determine risk level from score
+    const riskLevel = detectionResult.riskScore >= 80 ? 'CRITICAL'
+      : detectionResult.riskScore >= 60 ? 'HIGH'
+      : detectionResult.riskScore >= 30 ? 'MEDIUM'
+      : 'LOW';
+
+    // Get primary finding info
+    const primaryFinding = detectionResult.findings[0];
+    const category = primaryFinding?.category || 'UNKNOWN';
+    const patternMatched = primaryFinding?.matchedText || '';
+
+    // Persist event asynchronously -- don't block the response
     prisma.detectionEvent.create({
       data: {
         userId,
+        eventType,
+        category,
+        confidence: primaryFinding ? 0.9 : 0,
+        riskLevel,
+        patternMatched,
+        sanitizedMatch: patternMatched ? patternMatched.substring(0, 3) + '***' : '',
         platform,
         url: url ?? '',
+        promptLength: prompt.length,
+        userAction: 'attempted_send',
+        extensionVersion: (req.headers['x-extension-version'] as string) || '1.0.0',
+        browser: (req.headers['x-browser'] as string) || 'unknown',
         promptHash: DetectionService.hashPrompt(prompt),
         riskScore: detectionResult.riskScore,
-        categories: detectionResult.categories,
         action,
-        findings: detectionResult.findings as object[],
-        context: (context ?? {}) as object,
+        categories: detectionResult.categories,
+        findings: detectionResult.findings as any[],
+        context: (context ?? {}) as any,
       },
     }).catch((err: unknown) => {
       // Log but don't fail the scan response
@@ -78,7 +103,9 @@ scanRouter.post('/', async (req: AuthRequest, res: Response, next: NextFunction)
       findings: detectionResult.findings,
       message: getScanMessage(action, detectionResult.riskScore),
     });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 // POST /api/v1/scan/batch
@@ -88,7 +115,6 @@ scanRouter.post('/batch', async (req: AuthRequest, res: Response, next: NextFunc
     const batchSchema = z.object({
       prompts: z.array(scanSchema).min(1).max(50),
     });
-
     const { prompts } = batchSchema.parse(req.body);
     const userId = req.userId!;
 
@@ -100,6 +126,7 @@ scanRouter.post('/batch', async (req: AuthRequest, res: Response, next: NextFunc
         isActive: true,
         OR: [{ userId }, { isGlobal: true }],
       },
+      include: { rules: true },
     });
 
     const results = prompts.map(({ prompt, platform }) => {
@@ -118,15 +145,17 @@ scanRouter.post('/batch', async (req: AuthRequest, res: Response, next: NextFunc
     });
 
     res.json({ results });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 function getScanMessage(action: string, riskScore: number): string {
   if (action === 'BLOCKED') {
-    return `Prompt blocked — risk score ${riskScore}/100 exceeds your policy threshold.`;
+    return `Prompt blocked -- risk score ${riskScore}/100 exceeds your policy threshold.`;
   }
   if (action === 'WARNED') {
     return `Caution: risk score ${riskScore}/100 detected. Review before submitting.`;
   }
-  return `Prompt cleared — risk score ${riskScore}/100.`;
+  return `Prompt cleared -- risk score ${riskScore}/100.`;
 }
