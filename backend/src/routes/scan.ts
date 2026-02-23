@@ -58,7 +58,7 @@ scanRouter.post('/', async (req: AuthRequest, res: Response, next: NextFunction)
       data: {
         userId,
         platform,
-        url: url ?? null,
+        url: url ?? '',
         promptHash: DetectionService.hashPrompt(prompt),
         riskScore: detectionResult.riskScore,
         categories: detectionResult.categories,
