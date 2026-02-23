@@ -27,10 +27,9 @@ async function launchWithExtension() {
   return context;
 }
 
-// ─── API Health Smoke Tests ─────────────────────────────────────────────────────────
+// --- API Health Smoke Tests ---
 test.describe('FYI Guard API Health', () => {
-  test('health endpoint responds 200', async (fixtures) => {
-    const { request } = fixtures;
+  test('health endpoint responds 200', async ({ request }) => {
     const API_URL = process.env['API_URL'] || 'http://localhost:3001';
     const response = await request.get(`${API_URL}/api/v1/health`);
     expect(response.status()).toBe(200);
@@ -38,8 +37,7 @@ test.describe('FYI Guard API Health', () => {
     expect(body).toHaveProperty('status', 'healthy');
   });
 
-  test('auth endpoint rejects missing credentials', async (fixtures) => {
-    const { request } = fixtures;
+  test('auth endpoint rejects missing credentials', async ({ request }) => {
     const API_URL = process.env['API_URL'] || 'http://localhost:3001';
     const response = await request.post(`${API_URL}/api/v1/auth/login`, {
       data: {},
@@ -47,8 +45,7 @@ test.describe('FYI Guard API Health', () => {
     expect(response.status()).toBeGreaterThanOrEqual(400);
   });
 
-  test('events endpoint requires authentication', async (fixtures) => {
-    const { request } = fixtures;
+  test('events endpoint requires authentication', async ({ request }) => {
     const API_URL = process.env['API_URL'] || 'http://localhost:3001';
     const response = await request.post(`${API_URL}/api/v1/events`, {
       data: { events: [] },
@@ -57,17 +54,16 @@ test.describe('FYI Guard API Health', () => {
   });
 });
 
-// ─── Privacy Policy Smoke Test ──────────────────────────────────────────────────────
+// --- Privacy Policy Smoke Test ---
 test.describe('Privacy Policy', () => {
-  test('privacy policy page loads', async (fixtures) => {
-    const { page } = fixtures;
+  test('privacy policy page loads', async ({ page }) => {
     await page.goto('https://learn.certifyi.ai/fyi-guard/privacy-policy/');
     await expect(page).toHaveTitle(/Privacy Policy/i);
     await expect(page.locator('h1, h2').first()).toBeVisible();
   });
 });
 
-// ─── Freemium Gate Logic ───────────────────────────────────────────────────────────
+// --- Freemium Gate Logic ---
 test.describe('Freemium Gate', () => {
   test('free plan limits are enforced client-side', () => {
     const FREE_LIMIT = 5;
@@ -81,15 +77,14 @@ test.describe('Freemium Gate', () => {
     const FREE_LIMIT = 5;
     const scansToday = 100;
     const plan: 'free' | 'pro' = 'pro';
-const isBlocked = (plan as 'free' | 'pro') === 'free' && scansToday >= FREE_LIMIT;
+    const isBlocked = (plan as 'free' | 'pro') === 'free' && scansToday >= FREE_LIMIT;
     expect(isBlocked).toBe(false);
   });
 });
 
-// ─── Stripe Checkout Smoke Test ─────────────────────────────────────────────────────
+// --- Stripe Checkout Smoke Test ---
 test.describe('Stripe Checkout', () => {
-  test('checkout endpoint rejects unauthenticated requests', async (fixtures) => {
-    const { request } = fixtures;
+  test('checkout endpoint rejects unauthenticated requests', async ({ request }) => {
     const API_URL = process.env['API_URL'] || 'http://localhost:3001';
     const response = await request.post(`${API_URL}/api/v1/stripe/create-checkout`);
     expect(response.status()).toBe(401);
