@@ -27,7 +27,8 @@
     "vitest": "^1.6.0",
     "@vitest/coverage-v8": "^1.6.0",
     "@playwright/test": "^1.44.0",
-    "jsdom": "^24.1.0"
+    "jsdom": "^24.1.0",
+    "typescript-eslint": "^8.0.0"
   },
   "dependencies": {
     "react": "^18.2.0",
