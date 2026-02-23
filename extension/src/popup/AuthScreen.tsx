@@ -7,6 +7,7 @@ import {
   registerUser,
   loginUser,
   saveAuthState,
+  isOfflineMode,
 } from '../shared/auth-utils';
 
 const P = COLORS.primary;
@@ -23,6 +24,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [domainWarning, setDomainWarning] = useState(false);
+  const [offlineNotice, setOfflineNotice] = useState(false);
 
   const validate = (): boolean => {
     setError(null);
@@ -37,15 +39,22 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
     if (!validate()) return;
     setLoading(true);
     setError(null);
+    setOfflineNotice(false);
     try {
       const res = mode === 'login'
         ? await loginUser(email, password)
         : await registerUser(email, password, name || undefined);
+
       await saveAuthState(res.token, {
         userId: res.userId,
         email: res.email,
         role: res.role || 'MEMBER',
       });
+
+      // Check if we ended up in offline mode
+      const offline = await isOfflineMode();
+      if (offline) setOfflineNotice(true);
+
       onAuthSuccess({ token: res.token, userId: res.userId, email: res.email, role: res.role || 'MEMBER' });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
@@ -76,6 +85,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         {error && (
           <div style={{ background: '#FEE2E2', color: '#DC2626', padding: 10,
             borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{error}</div>
+        )}
+
+        {offlineNotice && (
+          <div style={{ background: '#DBEAFE', color: '#1D4ED8', padding: 10,
+            borderRadius: 8, fontSize: 12, marginBottom: 12 }}>
+            Running in offline mode. Your data is stored locally. Detection features work without a backend.
+          </div>
         )}
 
         {domainWarning && (
