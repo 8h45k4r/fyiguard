@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { UserSettings } from '../shared/types';
 import { DEFAULT_SETTINGS } from '../shared/defaultPolicy';
 import { COLORS, BRAND } from '../shared/theme';
-import { authFetch, getAuthState } from '../shared/auth-utils';
+import { authFetch, getAuthState, isOfflineMode } from '../shared/auth-utils';
 import { API_ENDPOINTS } from '../shared/config';
 
 type Tab = 'detection' | 'platforms' | 'notifications' | 'organization' | 'advanced';
@@ -13,6 +13,7 @@ const Options: React.FC = () => {
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('detection');
   const [user, setUser] = useState<{ email: string; role: string } | null>(null);
+  const [offline, setOffline] = useState(false);
 
   useEffect(() => {
     chrome.storage.local.get(['settings'], (data) => {
@@ -21,6 +22,7 @@ const Options: React.FC = () => {
     getAuthState().then(({ user: u }) => {
       if (u) setUser({ email: u.email, role: u.role });
     });
+    isOfflineMode().then(setOffline);
   }, []);
 
   const save = () => {
@@ -39,6 +41,12 @@ const Options: React.FC = () => {
         {user && <span> ({user.email} - {user.role})</span>}
       </p>
 
+      {offline && (
+        <div style={{ background: '#DBEAFE', color: '#1D4ED8', padding: 12, borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
+          Running in offline mode. Settings are saved locally. Organization features require a backend connection.
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 0, marginBottom: 16 }}>
         {(['detection', 'platforms', 'notifications', 'organization', 'advanced'] as Tab[]).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)} style={{
@@ -56,7 +64,7 @@ const Options: React.FC = () => {
         {activeTab === 'detection' && <DetectionTab settings={settings} setSettings={setSettings} />}
         {activeTab === 'platforms' && <PlatformsTab settings={settings} setSettings={setSettings} />}
         {activeTab === 'notifications' && <NotificationsTab settings={settings} setSettings={setSettings} />}
-        {activeTab === 'organization' && <OrgTab userRole={user?.role || 'MEMBER'} />}
+        {activeTab === 'organization' && <OrgTab userRole={user?.role || 'MEMBER'} offline={offline} />}
         {activeTab === 'advanced' && <AdvancedTab settings={settings} setSettings={setSettings} />}
       </div>
 
@@ -135,30 +143,42 @@ const NotificationsTab: React.FC<{ settings: UserSettings; setSettings: (s: User
   </div>
 );
 
-const OrgTab: React.FC<{ userRole: string }> = ({ userRole }) => {
+const OrgTab: React.FC<{ userRole: string; offline: boolean }> = ({ userRole, offline }) => {
   const [org, setOrg] = useState<{ id: string; name: string; slug: string; members: { user: { email: string; role: string } }[] } | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [msg, setMsg] = useState('');
   const [newOrg, setNewOrg] = useState({ name: '', slug: '' });
   const isAdmin = userRole === 'ADMIN';
-  const baseUrl = API_ENDPOINTS.events.replace('/events', '');
 
   useEffect(() => {
-    authFetch(`${baseUrl}/organizations/mine`).then(r => r.json()).then(data => {
+    if (offline) return;
+    authFetch(`${API_ENDPOINTS.organizations}/mine`).then(r => r.json()).then(data => {
       if (data.organizations?.length > 0) setOrg(data.organizations[0].org);
     }).catch(() => {});
-  }, []);
+  }, [offline]);
+
+  if (offline) {
+    return (
+      <div>
+        <h3 style={sTitle}>Organization</h3>
+        <div style={{ background: '#DBEAFE', color: '#1D4ED8', padding: 12, borderRadius: 8, fontSize: 13 }}>
+          Organization management requires a backend connection. Currently running in offline mode.
+          All detection and protection features continue to work locally.
+        </div>
+      </div>
+    );
+  }
 
   const createOrg = async () => {
     if (!newOrg.name || !newOrg.slug) return;
-    const res = await authFetch(`${baseUrl}/organizations`, { method: 'POST', body: JSON.stringify(newOrg) });
+    const res = await authFetch(API_ENDPOINTS.organizations, { method: 'POST', body: JSON.stringify(newOrg) });
     if (res.ok) { const data = await res.json(); setOrg(data.org); setMsg('Organization created!'); }
     else { const err = await res.json(); setMsg(err.message || 'Failed'); }
   };
 
   const invite = async () => {
     if (!inviteEmail || !org) return;
-    const res = await authFetch(`${baseUrl}/organizations/${org.id}/invite`, { method: 'POST', body: JSON.stringify({ email: inviteEmail, role: 'member' }) });
+    const res = await authFetch(`${API_ENDPOINTS.organizations}/${org.id}/invite`, { method: 'POST', body: JSON.stringify({ email: inviteEmail, role: 'member' }) });
     const data = await res.json(); setMsg(data.message || 'Done'); setInviteEmail('');
   };
 
