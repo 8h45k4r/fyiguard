@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Install dependencies
 COPY package*.json ./
-RUN npm ci --include=dev
+RUN npm install --include=dev
 
 # Copy source and generate Prisma client
 COPY prisma ./prisma
@@ -25,7 +25,7 @@ RUN addgroup -S fyiguard && adduser -S fyiguard -G fyiguard
 
 # Install production dependencies only
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm install --omit=dev && npm cache clean --force
 
 # Copy built artifacts and Prisma client
 COPY --from=builder /app/dist ./dist
