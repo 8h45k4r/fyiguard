@@ -6,7 +6,7 @@
  *
  * Shared behavior:
  * - Submit interception (button click + Enter key)
- * - Blocked notification overlay
+ * - Blocked notification overlay (CSP-safe, no inline event handlers)
  * - Prompt text extraction
  * - MutationObserver for dynamic button injection
  */
@@ -103,31 +103,42 @@ export abstract class BasePlatformAdapter implements PlatformAdapter {
   }
 
   showBlockedNotification(detections: Detection[]): void {
+    // Remove any existing overlay
     const existing = document.querySelector('.fyiguard-overlay');
     if (existing) existing.remove();
 
+    // Build overlay using DOM APIs (CSP-safe, no inline event handlers)
     const overlay = document.createElement('div');
     overlay.className = 'fyiguard-overlay';
-    overlay.innerHTML = `
-      <div class="fyiguard-modal">
-        <h2>FYI Guard</h2>
-        <h3>Sensitive Data Detected</h3>
-        <p>${detections.length} sensitive item(s) found in your prompt.</p>
-        <ul>
-          ${detections
-            .map(
-              (d) =>
-                `<li><strong>${d.category}</strong> (${Math.round(
-                  d.confidence * 100
-                )}%)</li>`
-            )
-            .join('')}
-        </ul>
-        <button onclick="this.closest('.fyiguard-overlay')?.remove()">
-          Edit Prompt
-        </button>
-      </div>
-    `;
+
+    const card = document.createElement('div');
+    card.className = 'fyiguard-warning-card';
+
+    const title = document.createElement('h2');
+    title.textContent = '\u{1F6AB} Sensitive Data Detected';
+    card.appendChild(title);
+
+    const desc = document.createElement('p');
+    desc.textContent = `${detections.length} sensitive item(s) found in your prompt.`;
+    card.appendChild(desc);
+
+    const detectionList = document.createElement('div');
+    detectionList.className = 'fyiguard-detections';
+    detections.forEach((d) => {
+      const item = document.createElement('div');
+      item.className = 'fyiguard-detection-item';
+      item.textContent = `\u2022 ${d.category} (${Math.round(d.confidence * 100)}%)`;
+      detectionList.appendChild(item);
+    });
+    card.appendChild(detectionList);
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'fyiguard-btn fyiguard-btn-primary';
+    editBtn.textContent = 'Edit Prompt';
+    editBtn.addEventListener('click', () => overlay.remove());
+    card.appendChild(editBtn);
+
+    overlay.appendChild(card);
     document.body.appendChild(overlay);
   }
 }
