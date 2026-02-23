@@ -4,16 +4,16 @@
   "version": "1.0.0",
   "description": "Prevent sensitive data leaks to ChatGPT, Claude, and other AI tools. Real-time detection of PII, API keys, credentials, and confidential data.",
   "icons": {
-    "16": "public/icons/icon16.svg",
-    "48": "public/icons/icon48.svg",
-    "128": "public/icons/icon128.svg"
+    "16": "public/icons/icon16.png",
+    "48": "public/icons/icon48.png",
+    "128": "public/icons/icon128.png"
   },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "public/icons/icon16.svg",
-      "48": "public/icons/icon48.svg",
-      "128": "public/icons/icon128.svg"
+      "16": "public/icons/icon16.png",
+      "48": "public/icons/icon48.png",
+      "128": "public/icons/icon128.png"
     },
     "default_title": "FYI Guard"
   },
