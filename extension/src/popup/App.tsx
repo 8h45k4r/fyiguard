@@ -167,7 +167,7 @@ const App: React.FC = () => {
   );
 };
 
-const Dashboard: React.FC<{ events: DetectionEvent[]; plan: string }> = ({ events, plan }) => {
+const Dashboard: React.FC<{ events: DetectionEvent[]; plan: string }> = ({ events }) => {
   const blocked = events.filter(e => e.eventType === 'BLOCK').length;
   const warned = events.filter(e => e.eventType === 'WARN').length;
 
