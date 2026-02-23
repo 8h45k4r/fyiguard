@@ -48,3 +48,4 @@ describe('DetectionService', () => {
       expect(result.riskScore).toBe(0);
     });
   });
+  });
