@@ -13,20 +13,20 @@ datasource db {
 // ==========================================
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String?
-  orgId     String?
-    plan             String    @default("free")  // free | pro
-  stripeCustomerId String?   @unique
-  role      Role     @default(MEMBER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String    @id @default(cuid())
+  email          String    @unique
+  password       String
+  name           String?
+  orgId          String?
+  plan           String    @default("free") // free | pro
+  stripeCustomerId String? @unique
+  role           Role      @default(MEMBER)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  settings  UserSettings?
-  events    DetectionEvent[]
-  policies  Policy[]
+  settings       UserSettings?
+  events         DetectionEvent[]
+  policies       Policy[]
 
   // Guard: link to org membership
   orgMemberships OrgMember[]
@@ -41,31 +41,33 @@ enum Role {
 }
 
 model UserSettings {
-  id                    String      @id @default(cuid())
-  userId                String      @unique
-  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sensitivity           Sensitivity @default(MEDIUM)
-  autoBlock             Boolean     @default(true)
-  pii                   Boolean     @default(true)
-  financial             Boolean     @default(true)
-  credentials           Boolean     @default(true)
-  medical               Boolean     @default(true)
-  proprietary           Boolean     @default(true)
-  emailNotifications    Boolean     @default(false)
-  browserNotifications  Boolean     @default(true)
-  whitelistedDomains    String[]    @default([])
-  enabledPlatforms      String[]    @default(["chatgpt", "claude", "gemini"])
+  id                     String     @id @default(cuid())
+  userId                 String     @unique
+  user                   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sensitivity            Sensitivity @default(MEDIUM)
+  autoBlock              Boolean    @default(true)
+  pii                    Boolean    @default(true)
+  financial              Boolean    @default(true)
+  credentials            Boolean    @default(true)
+  medical                Boolean    @default(true)
+  proprietary            Boolean    @default(true)
+  emailNotifications     Boolean    @default(false)
+  browserNotifications   Boolean    @default(true)
+  whitelistedDomains     String[]   @default([])
+  enabledPlatforms       String[]   @default(["chatgpt", "claude", "gemini"])
+
   // Guard fields
-  blockingEnabled       Boolean     @default(true)
-  alertsEnabled         Boolean     @default(true)
-  sensitivityLevel      String      @default("MEDIUM")
-  allowedDomains        String[]    @default([])
-  blockedCategories     String[]    @default([])
-  webhookUrl            String?
-  slackWebhookUrl       String?
-  emailAlerts           Boolean     @default(false)
-  alertEmail            String?
-  updatedAt             DateTime    @updatedAt
+  blockingEnabled        Boolean    @default(true)
+  alertsEnabled          Boolean    @default(true)
+  sensitivityLevel       String     @default("MEDIUM")
+  allowedDomains         String[]   @default([])
+  blockedCategories      String[]   @default([])
+  webhookUrl             String?
+  slackWebhookUrl        String?
+  emailAlerts            Boolean    @default(false)
+  alertEmail             String?
+
+  updatedAt              DateTime   @updatedAt
 
   @@map("user_settings")
 }
@@ -93,6 +95,7 @@ model DetectionEvent {
   userAction       String    @default("attempted_send")
   extensionVersion String
   browser          String
+
   // Guard scan fields
   promptHash       String?
   riskScore        Int?
@@ -100,6 +103,7 @@ model DetectionEvent {
   categories       String[]  @default([])
   findings         Json?     @default("[]")
   context          Json?     @default("{}")
+
   createdAt        DateTime  @default(now())
 
   @@index([userId, createdAt])
@@ -122,18 +126,18 @@ enum RiskLevel {
 }
 
 model Policy {
-  id        String       @id @default(cuid())
-  userId    String
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name      String
-  enabled   Boolean      @default(true)
-  isActive  Boolean      @default(true)
-  isGlobal  Boolean      @default(false)
-  platforms String[]     @default([])
-  rules     PolicyRule[]
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  enabled     Boolean      @default(true)
+  isActive    Boolean      @default(true)
+  isGlobal    Boolean      @default(false)
+  platforms   String[]     @default([])
+  rules       PolicyRule[]
   description String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   @@map("policies")
 }
@@ -157,21 +161,21 @@ enum PolicyAction {
 }
 
 // ==========================================
-// FYI Guard — Multi-Tenant Access Control Models
+// FYI Guard - Multi-Tenant Access Control Models
 // ==========================================
 
 model Organization {
-  id                  String      @id @default(cuid())
-  name                String
-  slug                String      @unique
-  plan                String      @default("free_trial")
-  restrictSameDomain  Boolean     @default(false)
-  suspended           Boolean     @default(false)
-  createdAt           DateTime    @default(now())
-  updatedAt           DateTime    @updatedAt
+  id                 String      @id @default(cuid())
+  name               String
+  slug               String      @unique
+  plan               String      @default("free_trial")
+  restrictSameDomain Boolean     @default(false)
+  suspended          Boolean     @default(false)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 
-  domains  OrgDomain[]
-  members  OrgMember[]
+  domains            OrgDomain[]
+  members            OrgMember[]
 
   @@map("organizations")
 }
@@ -217,19 +221,20 @@ model Session {
 }
 
 model GuardLog {
-  id          String   @id @default(cuid())
-  verdict     String
-  reason      String
-  detail      String
-  riskLevel   String
+  id         String   @id @default(cuid())
+  verdict    String
+  reason     String
+  detail     String
+  riskLevel  String
   actionTaken String
-  userEmail   String
-  userRole    String
-  orgId       String?
-  action      String?
-  ipAddress   String?
-  payload     String?
-  createdAt   DateTime @default(now())
+  userEmail  String
+  userRole   String
+  orgId      String?
+  action     String?
+  ipAddress  String?
+  payload    String?
+  platform   String?
+  createdAt  DateTime @default(now())
 
   @@index([userEmail, createdAt])
   @@index([verdict])
@@ -248,12 +253,14 @@ model AdminAlert {
   userEmail       String
   alertType       AlertType
   severity        AlertSeverity
+  riskLevel       String?
   category        String
   description     String
-  matchedContent  String        // sanitized snippet
+  matchedContent  String
   platform        String
   url             String?
-  action          String        // BLOCKED / WARNED / ALLOWED
+  action          String
+  resolved        Boolean       @default(false)
   notifiedEmails  String[]      @default([])
   acknowledged    Boolean       @default(false)
   acknowledgedBy  String?
@@ -277,6 +284,7 @@ enum AlertType {
 enum AlertSeverity {
   INFO
   WARNING
+  HIGH
   CRITICAL
   EMERGENCY
 }
@@ -286,21 +294,24 @@ enum AlertSeverity {
 // ==========================================
 
 model BehaviorSession {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   userId          String
   userEmail       String
+  orgId           String?
   platform        String
-  url             String?
-  startedAt       DateTime @default(now())
+  url             String?   @default("")
+  startTime       DateTime  @default(now())
+  startedAt       DateTime  @default(now())
   endedAt         DateTime?
-  durationSeconds Int      @default(0)
-  promptCount     Int      @default(0)
-  blockedCount    Int      @default(0)
-  warnedCount     Int      @default(0)
-  allowedCount    Int      @default(0)
-  avgRiskScore    Float    @default(0)
-  isActive        Boolean  @default(true)
-  metadata        Json?    @default("{}")
+  endTime         DateTime?
+  durationSeconds Int       @default(0)
+  promptCount     Int       @default(0)
+  blockedCount    Int       @default(0)
+  warnedCount     Int       @default(0)
+  allowedCount    Int       @default(0)
+  avgRiskScore    Float     @default(0)
+  isActive        Boolean   @default(true)
+  metadata        Json?     @default("{}")
 
   @@index([userId, startedAt])
   @@index([platform])
@@ -308,21 +319,40 @@ model BehaviorSession {
   @@map("behavior_sessions")
 }
 
+model BehaviorEvent {
+  id        String   @id @default(cuid())
+  sessionId String
+  eventType String
+  platform  String
+  data      Json?    @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@map("behavior_events")
+}
+
 model DailyUsageSummary {
-  id                String   @id @default(cuid())
-  userId            String
-  userEmail         String
-  date              DateTime @db.Date
-  totalTimeSeconds  Int      @default(0)
-  platformBreakdown Json     @default("{}")
-  totalPrompts      Int      @default(0)
-  totalBlocked      Int      @default(0)
-  totalWarned       Int      @default(0)
-  totalAllowed      Int      @default(0)
-  riskScore         Float    @default(0)
-  productivityScore Float    @default(0)  // 0-100 scale
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  userId              String
+  userEmail           String
+  orgId               String?
+  date                DateTime @db.Date
+  platform            String?  @default("all")
+  totalTimeSeconds    Int      @default(0)
+  totalMinutes        Float    @default(0)
+  sessionCount        Int      @default(0)
+  promptCount         Int      @default(0)
+  detectionCount      Int      @default(0)
+  blockedCount        Int      @default(0)
+  platformBreakdown   Json     @default("{}")
+  totalPrompts        Int      @default(0)
+  totalBlocked        Int      @default(0)
+  totalWarned         Int      @default(0)
+  totalAllowed        Int      @default(0)
+  riskScore           Float    @default(0)
+  productivityScore   Float    @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@unique([userId, date])
   @@index([userEmail, date])
