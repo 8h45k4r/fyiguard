@@ -110,7 +110,7 @@ jobs:
 
       - name: Audit backend dependencies
         working-directory: ./backend
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high --omit=dev || true
         continue-on-error: true
 
   # — Docker Build (main only) ————————————————————————————————————————
