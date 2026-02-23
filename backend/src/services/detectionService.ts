@@ -1,5 +1,7 @@
 import crypto from 'crypto';
-import { UserSettings, Policy } from '@prisma/client';
+import { UserSettings, Prisma } from '@prisma/client';
+
+type PolicyWithRules = Prisma.PolicyGetPayload<{ include: { rules: true } }>;
 
 export interface DetectionFinding {
   category: string;
@@ -13,7 +15,7 @@ export interface ScanInput {
   prompt: string;
   platform: string;
   settings: UserSettings;
-  policies: Policy[];
+  policies: PolicyWithRules[];
 }
 
 export interface ScanResult {
