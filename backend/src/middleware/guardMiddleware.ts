@@ -253,14 +253,15 @@ async function logGuardFailure(
   try {
     await prisma.guardLog.create({
       data: {
-        userEmail,
+                          userEmail,
+        userRole: 'member',
         platform,
-        promptSnippet: prompt.substring(0, 200),
-        action: 'ERROR',
-        code: 'GUARD_EVAL_FAILED',
+        verdict: 'ERROR',
         reason: error instanceof Error ? error.message : 'Unknown error',
-        riskScore: -1,
-        confidence: 'none',
+        detail: prompt.substring(0, 200),
+        riskLevel: 'CRITICAL',
+        actionTaken: 'ERROR',
+        action: 'ERROR',
       },
     });
   } catch (dbError) {
