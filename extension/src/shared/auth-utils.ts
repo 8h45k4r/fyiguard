@@ -4,6 +4,7 @@
  * Handles login, register, logout, token management,
  * and auth state persistence via chrome.storage.local.
  * Supports offline/local mode when backend is unavailable.
+ * Includes email verification, forgot password, and resend verification.
  */
 import { API_ENDPOINTS } from './config';
 
@@ -46,6 +47,8 @@ export interface AuthResponse {
   userId: string;
   email: string;
   role?: string;
+  emailVerified?: boolean;
+  message?: string;
 }
 
 /** Check if the backend API is reachable */
@@ -106,7 +109,7 @@ async function createLocalAccount(email: string): Promise<AuthResponse> {
   const token = generateLocalToken();
   await chrome.storage.local.set({ [AUTH_KEYS.OFFLINE_MODE]: true });
   console.info('[FYI Guard] Backend unavailable - created local account for', email);
-  return { token, userId, email, role: 'MEMBER' };
+  return { token, userId, email, role: 'MEMBER', emailVerified: true };
 }
 
 /** Login via backend API - falls back to local auth */
@@ -144,10 +147,46 @@ async function loginLocalAccount(email: string): Promise<AuthResponse> {
   if (existingUser && existingUser.email === email) {
     const token = generateLocalToken();
     await chrome.storage.local.set({ [AUTH_KEYS.OFFLINE_MODE]: true });
-    return { token, userId: existingUser.userId, email, role: existingUser.role };
+    return { token, userId: existingUser.userId, email, role: existingUser.role, emailVerified: true };
   }
   // No existing local account - create one
   return createLocalAccount(email);
+}
+
+/** Forgot password - request password reset email */
+export async function forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch(`${API_ENDPOINTS.auth}/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json().catch(() => ({ message: 'Request failed' }));
+    if (!res.ok) {
+      return { success: false, message: data.message || 'Failed to send reset email' };
+    }
+    return { success: true, message: data.message || 'Password reset email sent' };
+  } catch {
+    return { success: false, message: 'Network error. Please try again later.' };
+  }
+}
+
+/** Resend email verification */
+export async function resendVerification(email: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch(`${API_ENDPOINTS.auth}/resend-verification`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json().catch(() => ({ message: 'Request failed' }));
+    if (!res.ok) {
+      return { success: false, message: data.message || 'Failed to resend verification' };
+    }
+    return { success: true, message: data.message || 'Verification email sent' };
+  } catch {
+    return { success: false, message: 'Network error. Please try again later.' };
+  }
 }
 
 /** Check if running in offline mode */
