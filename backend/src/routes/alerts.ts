@@ -1,10 +1,8 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../server';
 import { processAlert, determineSeverity } from '../services/alertService';
 
 const router = Router();
-const prisma = new PrismaClient();
-
 /**
  * POST /api/alerts
  * Process and create a new alert for org admins
